@@ -1,0 +1,50 @@
+body { 
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  margin: 0;
+}
+
+#wall-container {
+  position: relative;
+  height: 95vh;
+  width: 95vh;
+  display: inline-block; 
+}
+
+#wall {
+  height: 100%;
+  width: 100%;
+  display: block;
+}
+
+.hold {
+  position: absolute;
+  width: 4%;
+  height: 4%;
+  border-radius: 50%;
+  border: 5px solid red;
+  pointer-events: none;
+  z-index: 10;
+  pointer-events: none; 
+}
+
+#controls {
+  display: flex;
+  gap: 10px;
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  background: rgba(255, 255, 255, 0.8);
+  padding: 10px;
+  border-radius: 5px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+  z-index: 20;
+}
+
+#state button {
+  padding: 5px 10px;
+  font-size: 16px;
+  cursor: pointer;
+}
