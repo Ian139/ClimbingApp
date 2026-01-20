@@ -143,7 +143,7 @@ export function WallCanvas({
   };
 
   return (
-    <div className="relative w-full h-full flex items-center justify-center bg-zinc-900">
+    <div className="relative w-full h-full flex items-center justify-center bg-background md:bg-zinc-900">
       <div
         ref={containerRef}
         className="relative max-w-full max-h-full cursor-crosshair touch-none"

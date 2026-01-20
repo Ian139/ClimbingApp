@@ -15,23 +15,23 @@ import {
 const STORAGE_KEY = 'climbset-draft';
 
 export function useHolds(initialHolds: Hold[] = []) {
-	const [holds, setHolds] = useState<Hold[]>(() => {
-		// Load from localStorage on mount
-		if (typeof window !== 'undefined') {
-			const saved = localStorage.getItem(STORAGE_KEY);
-			if (saved) {
-				try {
-					const parsed = JSON.parse(saved);
-					// Ensure we always return an array
-					return Array.isArray(parsed) ? parsed : initialHolds;
-				} catch {
-					return initialHolds;
+	const [holds, setHolds] = useState<Hold[]>(initialHolds);
+	const [selectedType, setSelectedType] = useState<HoldType>('hand');
+
+	// Load from localStorage after hydration to avoid SSR mismatch
+	useEffect(() => {
+		const saved = localStorage.getItem(STORAGE_KEY);
+		if (saved) {
+			try {
+				const parsed = JSON.parse(saved);
+				if (Array.isArray(parsed)) {
+					setHolds(parsed);
 				}
+			} catch {
+				// Ignore parse errors
 			}
 		}
-		return initialHolds;
-	});
-	const [selectedType, setSelectedType] = useState<HoldType>('hand');
+	}, []);
 	const [selectedSize, setSelectedSize] = useState<HoldSize>('medium');
 	const [showSequence, setShowSequence] = useState(false);
 
