@@ -732,9 +732,9 @@ export default function Home() {
         )}
       </main>
 
-      {/* Floating Action Button */}
+      {/* Floating Action Button - raised on mobile to clear bottom nav */}
       {selectedWall && (
-        <div className="fixed bottom-6 right-4 z-40">
+        <div className="fixed bottom-20 md:bottom-6 right-4 z-40">
           <button
             onClick={handleNewRoute}
             className="size-14 rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/25 flex items-center justify-center hover:scale-105 active:scale-95 transition-transform"
