@@ -5,6 +5,7 @@ import { BottomNav } from "@/components/shared/BottomNav";
 import { LiquidTransition } from "@/components/shared/LiquidTransition";
 import { Toaster } from "@/components/ui/sonner";
 import { Providers } from "@/components/providers/Providers";
+import { Analytics } from "@vercel/analytics/next";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -36,6 +37,7 @@ export default function RootLayout({
           <BottomNav />
           <LiquidTransition />
           <Toaster />
+          <Analytics />
         </Providers>
       </body>
     </html>
