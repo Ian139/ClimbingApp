@@ -355,16 +355,32 @@ export default function Home() {
   if (!mounted) return null;
 
   return (
-    <div className="min-h-dvh bg-background pb-28">
+    <div className="min-h-dvh bg-background pb-28 md:pb-8">
       {/* Header */}
-      <header className="px-4 pt-6 pb-4">
-        <div className="flex items-center justify-between mb-5">
-          <h1 className="text-2xl font-bold tracking-tight">climbset</h1>
-          <div className="flex items-center gap-2">
+      <header className="px-4 md:px-8 pt-6 pb-4">
+        {/* Desktop Header */}
+        <div className="hidden md:flex items-center justify-between border-b border-border/50 pb-4">
+          <div className="flex items-center gap-8">
+            <h1 className="text-xl font-bold tracking-tight">climbset</h1>
+
+            {/* Wall Selector - Desktop inline dropdown */}
+            <button
+              onClick={() => setShowWallPicker(true)}
+              className="flex items-center gap-2 text-foreground hover:text-primary transition-colors group"
+            >
+              <span className="font-medium">{selectedWall?.name || 'Select Wall'}</span>
+              <span className="text-muted-foreground text-sm">({wallRoutes.length})</span>
+              <svg className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-4">
             <button
               onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
               aria-label="Toggle dark mode"
-              className="size-10 rounded-xl bg-card border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className="text-muted-foreground hover:text-foreground transition-colors"
             >
               <svg className="w-5 h-5 dark:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
@@ -376,7 +392,7 @@ export default function Home() {
             <Link
               href="/settings"
               aria-label="Settings"
-              className="size-10 rounded-xl bg-card border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className="text-muted-foreground hover:text-foreground transition-colors"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
@@ -386,39 +402,53 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Wall Selector */}
-        <button
-          onClick={() => setShowWallPicker(true)}
-          className="w-full flex items-center gap-3 p-3 rounded-xl bg-card border border-border hover:border-primary/50 transition-colors"
-        >
-          {selectedWall ? (
-            <>
-              <div className="size-12 rounded-lg bg-muted overflow-hidden shrink-0">
-                <img
-                  src={selectedWall.image_url}
-                  alt={selectedWall.name}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="flex-1 text-left min-w-0">
-                <p className="font-medium truncate">{selectedWall.name}</p>
-                <p className="text-sm text-muted-foreground">{wallRoutes.length} routes</p>
-              </div>
-            </>
-          ) : (
-            <div className="flex-1 text-left">
-              <p className="font-medium">Select a wall</p>
-              <p className="text-sm text-muted-foreground">Tap to choose</p>
-            </div>
-          )}
-          <svg className="w-5 h-5 text-muted-foreground shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 15L12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9" />
-          </svg>
-        </button>
+        {/* Mobile Header */}
+        <div className="md:hidden flex items-center justify-between border-b border-border/50 pb-4">
+          <div className="flex items-center gap-4">
+            <h1 className="text-xl font-bold tracking-tight">climbset</h1>
+
+            {/* Wall Selector - Mobile inline */}
+            <button
+              onClick={() => setShowWallPicker(true)}
+              className="flex items-center gap-1.5 text-foreground active:text-primary transition-colors"
+            >
+              <span className="font-medium text-sm">{selectedWall?.name || 'Select Wall'}</span>
+              <span className="text-muted-foreground text-xs">({wallRoutes.length})</span>
+              <svg className="w-3.5 h-3.5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              aria-label="Toggle dark mode"
+              className="text-muted-foreground active:text-foreground transition-colors"
+            >
+              <svg className="w-5 h-5 dark:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+              </svg>
+              <svg className="w-5 h-5 hidden dark:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
+              </svg>
+            </button>
+            <Link
+              href="/settings"
+              aria-label="Settings"
+              className="text-muted-foreground active:text-foreground transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </Link>
+          </div>
+        </div>
       </header>
 
       {/* Routes List */}
-      <main className="px-4 mt-2">
+      <main className="px-4 md:px-8 mt-2">
         {!selectedWall ? (
           <div className="py-16 text-center">
             <div className="size-16 rounded-2xl bg-muted mx-auto mb-4 flex items-center justify-center">
@@ -432,42 +462,114 @@ export default function Home() {
           </div>
         ) : (
           <>
-            {/* Search and Filter Bar */}
-            <div className="mb-4 space-y-3">
-              {/* Search Input */}
-              <div className="relative">
-                <svg
-                  className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-                </svg>
-                <Input
-                  type="text"
-                  placeholder="Search routes, setters..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 pr-10"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            {/* Search and Filter Bar - Mobile (combined box like desktop) */}
+            <div className="mb-4 md:hidden">
+              <div className="flex flex-col gap-2 p-2.5 rounded-xl bg-card border border-border/50">
+                {/* Search Row */}
+                <div className="relative flex-1">
+                  <svg
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
                   >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                )}
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                  </svg>
+                  <input
+                    type="text"
+                    placeholder="Search routes, setters..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 bg-transparent border-none outline-none text-sm placeholder:text-muted-foreground"
+                  />
+                </div>
+
+                {/* Divider */}
+                <div className="h-px bg-border/50" />
+
+                {/* Filters Row */}
+                <div className="flex items-center gap-2">
+                  <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+                    <SelectTrigger className="flex-1 h-8 text-xs border-none bg-transparent shadow-none px-2">
+                      <SelectValue placeholder="Sort" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="newest">Newest</SelectItem>
+                      <SelectItem value="oldest">Oldest</SelectItem>
+                      <SelectItem value="name">Name</SelectItem>
+                      <SelectItem value="grade-asc">Easiest</SelectItem>
+                      <SelectItem value="grade-desc">Hardest</SelectItem>
+                      <SelectItem value="rating">Top Rated</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <div className="w-px h-5 bg-border/50" />
+
+                  <Select value={filterGrade} onValueChange={setFilterGrade}>
+                    <SelectTrigger className="flex-1 h-8 text-xs border-none bg-transparent shadow-none px-2">
+                      <SelectValue placeholder="Grade" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Grades</SelectItem>
+                      {availableGrades.map((grade) => (
+                        <SelectItem key={grade} value={grade}>
+                          {grade}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {(searchQuery || filterGrade !== 'all') && (
+                    <>
+                      <div className="w-px h-5 bg-border/50" />
+                      <button
+                        onClick={() => {
+                          setSearchQuery('');
+                          setFilterGrade('all');
+                        }}
+                        className="text-xs text-muted-foreground active:text-foreground transition-colors px-2"
+                      >
+                        Clear
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
 
-              {/* Sort and Filter Row */}
-              <div className="flex items-center gap-2">
+              {(searchQuery || filterGrade !== 'all') && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  {wallRoutes.length} route{wallRoutes.length !== 1 ? 's' : ''} found
+                </p>
+              )}
+            </div>
+
+            {/* Search and Filter Bar - Desktop (combined box) */}
+            <div className="hidden md:block mb-6">
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-card border border-border/50">
+                <div className="relative flex-1">
+                  <svg
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                  </svg>
+                  <input
+                    type="text"
+                    placeholder="Search routes, setters..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 bg-transparent border-none outline-none text-sm placeholder:text-muted-foreground"
+                  />
+                </div>
+
+                <div className="w-px h-6 bg-border" />
+
                 <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-                  <SelectTrigger className="flex-1 h-9">
+                  <SelectTrigger className="w-40 h-9 border-none bg-transparent shadow-none">
                     <SelectValue placeholder="Sort by" />
                   </SelectTrigger>
                   <SelectContent>
@@ -480,9 +582,11 @@ export default function Home() {
                   </SelectContent>
                 </Select>
 
+                <div className="w-px h-6 bg-border" />
+
                 <Select value={filterGrade} onValueChange={setFilterGrade}>
-                  <SelectTrigger className="flex-1 h-9">
-                    <SelectValue placeholder="Filter grade" />
+                  <SelectTrigger className="w-32 h-9 border-none bg-transparent shadow-none">
+                    <SelectValue placeholder="All Grades" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Grades</SelectItem>
@@ -495,21 +599,23 @@ export default function Home() {
                 </Select>
 
                 {(searchQuery || filterGrade !== 'all') && (
-                  <button
-                    onClick={() => {
-                      setSearchQuery('');
-                      setFilterGrade('all');
-                    }}
-                    className="h-9 px-3 rounded-md bg-muted text-muted-foreground hover:text-foreground text-sm font-medium"
-                  >
-                    Clear
-                  </button>
+                  <>
+                    <div className="w-px h-6 bg-border" />
+                    <button
+                      onClick={() => {
+                        setSearchQuery('');
+                        setFilterGrade('all');
+                      }}
+                      className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      Clear
+                    </button>
+                  </>
                 )}
               </div>
 
-              {/* Results count */}
               {(searchQuery || filterGrade !== 'all') && (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground mt-2">
                   {wallRoutes.length} route{wallRoutes.length !== 1 ? 's' : ''} found
                 </p>
               )}
@@ -548,185 +654,401 @@ export default function Home() {
                 <Button onClick={handleNewRoute}>Create Route</Button>
               </div>
             ) : (
-              <div className="space-y-3">
-                {wallRoutes.map((route, index) => {
-                  const showInfo = flippedCards.has(route.id);
-                  const ascents = route.ascents || [];
-                  const avgRating = ascents.length > 0
-                    ? ascents.reduce((sum, a) => sum + (a.rating || 0), 0) / ascents.filter(a => a.rating).length || route.rating || 0
-                    : route.rating || 0;
-                  const displayGrade = calculateDisplayGrade(route.grade_v, ascents);
+              <>
+                {/* Mobile Routes List - Seamless */}
+                <div className="md:hidden divide-y divide-border/50">
+                  {wallRoutes.map((route, index) => {
+                    const ascents = route.ascents || [];
+                    const avgRating = ascents.length > 0
+                      ? ascents.reduce((sum, a) => sum + (a.rating || 0), 0) / ascents.filter(a => a.rating).length || route.rating || 0
+                      : route.rating || 0;
+                    const displayGrade = calculateDisplayGrade(route.grade_v, ascents);
+                    const isExpanded = flippedCards.has(route.id);
 
-                  return (
-                    <motion.div
-                      key={route.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.05 }}
-                      className="rounded-xl bg-card border border-border shadow-sm overflow-hidden"
-                    >
-                      <AnimatePresence mode="wait">
-                        {!showInfo ? (
-                          <motion.div
-                            key="front"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.2 }}
-                            onClick={() => setRouteToView(route)}
-                            className="p-4 cursor-pointer hover:bg-muted/30 active:bg-muted/50 transition-colors"
-                          >
-                            <div className="flex items-start gap-3">
-                              {/* Grade Badge - Left side */}
-                              <div className="shrink-0">
-                                <div className={cn(
-                                  "size-12 rounded-xl flex items-center justify-center font-bold text-sm",
-                                  displayGrade
-                                    ? "bg-primary text-primary-foreground"
-                                    : "bg-muted text-muted-foreground"
-                                )}>
-                                  {displayGrade || '?'}
+                    return (
+                      <motion.div
+                        key={route.id}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: index * 0.03 }}
+                        className="relative"
+                      >
+                        {/* Feathered active background */}
+                        <div className={cn(
+                          "absolute inset-0 -mx-2 rounded-xl transition-all duration-200",
+                          isExpanded ? "bg-muted/40" : "bg-transparent active:bg-muted/30"
+                        )} />
+
+                        <div
+                          onClick={() => setRouteToView(route)}
+                          className="relative flex items-center gap-3 py-4 cursor-pointer"
+                        >
+                          {/* Grade */}
+                          <div className="w-12 shrink-0">
+                            <span className={cn(
+                              "text-lg font-bold",
+                              displayGrade ? "text-primary" : "text-muted-foreground"
+                            )}>
+                              {displayGrade || '—'}
+                            </span>
+                          </div>
+
+                          {/* Route Info */}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-medium text-foreground truncate">{route.name}</h3>
+                            <div className="flex items-center gap-3 mt-0.5 text-sm text-muted-foreground">
+                              <span className="truncate">{route.user_name || 'Anonymous'}</span>
+                              <span className="flex items-center gap-1 shrink-0">
+                                <div className="flex gap-0.5">
+                                  {route.holds.slice(0, 3).map((hold, i) => (
+                                    <div
+                                      key={i}
+                                      className="size-1.5 rounded-full"
+                                      style={{ backgroundColor: HOLD_COLORS[hold.type] }}
+                                    />
+                                  ))}
                                 </div>
-                              </div>
+                                {route.holds.length}
+                              </span>
+                            </div>
+                          </div>
 
-                              <div className="flex-1 min-w-0 py-0.5">
-                                <h3 className="font-semibold truncate">{route.name}</h3>
-                                <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
-                                  <span className="flex items-center gap-1">
-                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                                    </svg>
-                                    {route.user_name || 'Anonymous'}
-                                  </span>
-                                  <span className="flex items-center gap-1">
-                                    <div className="flex gap-0.5">
-                                      {route.holds.slice(0, 3).map((hold, i) => (
-                                        <div
-                                          key={i}
-                                          className="size-2 rounded-full"
-                                          style={{ backgroundColor: HOLD_COLORS[hold.type] }}
-                                        />
+                          {/* Actions */}
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              onClick={(e) => openLogDialog(route, e)}
+                              aria-label="Log climb"
+                              className={cn(
+                                "size-9 rounded-lg flex items-center justify-center transition-colors",
+                                hasUserClimbed(route.id, userId || 'local-user')
+                                  ? "text-secondary"
+                                  : "text-muted-foreground"
+                              )}
+                            >
+                              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={(e) => toggleCardFlip(route.id, e)}
+                              aria-label="View info"
+                              className={cn(
+                                "size-9 rounded-lg flex items-center justify-center transition-colors",
+                                isExpanded
+                                  ? "text-primary"
+                                  : "text-muted-foreground"
+                              )}
+                            >
+                              <svg
+                                className={cn(
+                                  "w-5 h-5 transition-transform duration-200",
+                                  isExpanded && "rotate-180"
+                                )}
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                strokeWidth={2}
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Expanded Info Panel */}
+                        <AnimatePresence>
+                          {isExpanded && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.2 }}
+                              className="relative overflow-hidden"
+                            >
+                              <div className="pb-4 space-y-3">
+                                {/* Stats Grid */}
+                                <div className="grid grid-cols-4 gap-2">
+                                  <div className="text-center">
+                                    <p className="text-muted-foreground text-xs">Grade</p>
+                                    <p className="font-bold text-primary">{displayGrade || '—'}</p>
+                                  </div>
+                                  <div className="text-center">
+                                    <p className="text-muted-foreground text-xs">Rating</p>
+                                    <div className="flex justify-center">
+                                      {avgRating > 0 ? (
+                                        <span className="font-bold">{avgRating.toFixed(1)}</span>
+                                      ) : (
+                                        <span className="text-muted-foreground">—</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="text-center">
+                                    <p className="text-muted-foreground text-xs">Holds</p>
+                                    <p className="font-bold">{route.holds.length}</p>
+                                  </div>
+                                  <div className="text-center">
+                                    <p className="text-muted-foreground text-xs">Ascents</p>
+                                    <p className="font-bold">{ascents.length}</p>
+                                  </div>
+                                </div>
+
+                                {/* Rating Stars */}
+                                {avgRating > 0 && (
+                                  <div className="flex justify-center">
+                                    <StarRating rating={Math.round(avgRating)} />
+                                  </div>
+                                )}
+
+                                {/* Recent Climbers */}
+                                {ascents.length > 0 && (
+                                  <div>
+                                    <p className="text-xs text-muted-foreground mb-1.5 text-center">Recent climbers</p>
+                                    <div className="flex flex-wrap justify-center gap-1.5">
+                                      {ascents.slice(0, 4).map((a, i) => (
+                                        <span key={i} className="text-xs bg-muted/60 px-2 py-0.5 rounded">
+                                          {a.user_name || 'Anonymous'}
+                                        </span>
                                       ))}
                                     </div>
-                                    {route.holds.length} holds
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-3 mt-2">
-                                  {avgRating > 0 && <StarRating rating={Math.round(avgRating)} />}
-                                  {ascents.length > 0 && (
-                                    <span className="text-xs text-muted-foreground">
-                                      {ascents.length} ascent{ascents.length !== 1 ? 's' : ''}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
+                                  </div>
+                                )}
 
-                              <div className="flex flex-col gap-1 shrink-0">
-                                <button
-                                  onClick={(e) => openLogDialog(route, e)}
-                                  aria-label="Log climb"
-                                  className={cn(
-                                    "size-9 rounded-lg flex items-center justify-center transition-colors",
-                                    hasUserClimbed(route.id, userId || 'local-user')
-                                      ? "text-secondary bg-secondary/10"
-                                      : "text-muted-foreground hover:text-secondary hover:bg-secondary/10"
-                                  )}
-                                >
-                                  <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                  </svg>
-                                </button>
-                                <button
-                                  onClick={(e) => toggleCardFlip(route.id, e)}
-                                  aria-label="View info"
-                                  className="size-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                                >
-                                  <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-                                  </svg>
-                                </button>
-                                {canDeleteRoute(route) && (
+                                {/* Action Buttons */}
+                                <div className="flex justify-center gap-2 pt-1">
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setRouteToDelete(route);
+                                      setRouteToView(route);
                                     }}
-                                    aria-label="Delete route"
-                                    className="size-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-sm font-medium"
                                   >
-                                    <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                     </svg>
+                                    View
                                   </button>
+                                  <button
+                                    onClick={(e) => openLogDialog(route, e)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary/10 text-secondary text-sm font-medium"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    Log
+                                  </button>
+                                  {canDeleteRoute(route) && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setRouteToDelete(route);
+                                      }}
+                                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-destructive/10 text-destructive text-sm font-medium"
+                                    >
+                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                                      </svg>
+                                      Delete
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+
+                {/* Desktop Routes List - Seamless */}
+                <div className="hidden md:block">
+                  <div className="divide-y divide-border/50">
+                    {wallRoutes.map((route, index) => {
+                      const ascents = route.ascents || [];
+                      const avgRating = ascents.length > 0
+                        ? ascents.reduce((sum, a) => sum + (a.rating || 0), 0) / ascents.filter(a => a.rating).length || route.rating || 0
+                        : route.rating || 0;
+                      const displayGrade = calculateDisplayGrade(route.grade_v, ascents);
+                      const isExpanded = flippedCards.has(route.id);
+
+                      return (
+                        <motion.div
+                          key={route.id}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: index * 0.03 }}
+                          className="group relative"
+                        >
+                          {/* Feathered hover background */}
+                          <div className={cn(
+                            "absolute inset-0 -mx-2 rounded-xl transition-all duration-300 ease-out",
+                            isExpanded ? "bg-muted/30" : "bg-muted/0 group-hover:bg-muted/50"
+                          )} />
+
+                          <div
+                            onClick={() => setRouteToView(route)}
+                            className="relative flex items-center gap-6 py-4 px-2 cursor-pointer"
+                          >
+                            {/* Grade */}
+                            <div className="w-14 shrink-0">
+                              <span className={cn(
+                                "text-lg font-bold",
+                                displayGrade ? "text-primary" : "text-muted-foreground"
+                              )}>
+                                {displayGrade || '—'}
+                              </span>
+                            </div>
+
+                            {/* Route Info */}
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-medium text-foreground group-hover:text-primary transition-colors">
+                                {route.name}
+                              </h3>
+                              <div className="flex items-center gap-4 mt-0.5 text-sm text-muted-foreground">
+                                <span>{route.user_name || 'Anonymous'}</span>
+                                <span className="flex items-center gap-1">
+                                  <div className="flex gap-0.5">
+                                    {route.holds.slice(0, 4).map((hold, i) => (
+                                      <div
+                                        key={i}
+                                        className="size-1.5 rounded-full"
+                                        style={{ backgroundColor: HOLD_COLORS[hold.type] }}
+                                      />
+                                    ))}
+                                  </div>
+                                  {route.holds.length}
+                                </span>
+                                {avgRating > 0 && <StarRating rating={Math.round(avgRating)} />}
+                                {ascents.length > 0 && (
+                                  <span>{ascents.length} ascent{ascents.length !== 1 ? 's' : ''}</span>
                                 )}
                               </div>
                             </div>
-                          </motion.div>
-                        ) : (
-                          <motion.div
-                            key="back"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.2 }}
-                            className="p-4"
-                          >
-                            <div className="flex items-center justify-between mb-4">
-                              <h3 className="font-semibold truncate">{route.name}</h3>
+
+                            {/* Actions */}
+                            <div className={cn(
+                              "flex items-center gap-2 transition-opacity duration-200",
+                              isExpanded ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                            )}>
                               <button
-                                onClick={(e) => toggleCardFlip(route.id, e)}
-                                className="size-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                onClick={(e) => openLogDialog(route, e)}
+                                aria-label="Log climb"
+                                className={cn(
+                                  "size-8 rounded-lg flex items-center justify-center transition-colors",
+                                  hasUserClimbed(route.id, userId || 'local-user')
+                                    ? "text-secondary"
+                                    : "text-muted-foreground hover:text-secondary"
+                                )}
                               >
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                               </button>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-2.5">
-                              <div className="bg-muted/50 rounded-lg p-3">
-                                <p className="text-muted-foreground text-xs mb-1">Grade</p>
-                                <p className="font-bold text-primary text-lg">{displayGrade || 'Ungraded'}</p>
-                                {route.grade_v && displayGrade !== route.grade_v && (
-                                  <p className="text-xs text-muted-foreground mt-0.5">Setter: {route.grade_v}</p>
+                              <button
+                                onClick={(e) => toggleCardFlip(route.id, e)}
+                                aria-label="View info"
+                                className={cn(
+                                  "size-8 rounded-lg flex items-center justify-center transition-colors",
+                                  isExpanded
+                                    ? "text-primary bg-primary/10"
+                                    : "text-muted-foreground hover:text-primary"
                                 )}
-                              </div>
-                              <div className="bg-muted/50 rounded-lg p-3">
-                                <p className="text-muted-foreground text-xs mb-1">Rating</p>
-                                <div className="flex items-center gap-1.5">
-                                  <StarRating rating={Math.round(avgRating)} />
-                                  {avgRating > 0 && <span className="text-sm font-medium">{avgRating.toFixed(1)}</span>}
-                                </div>
-                              </div>
-                              <div className="bg-muted/50 rounded-lg p-3">
-                                <p className="text-muted-foreground text-xs mb-1">Setter</p>
-                                <p className="font-medium truncate">{route.user_name || 'Anonymous'}</p>
-                              </div>
-                              <div className="bg-muted/50 rounded-lg p-3">
-                                <p className="text-muted-foreground text-xs mb-1">Ascents</p>
-                                <p className="font-bold text-lg">{ascents.length}</p>
-                              </div>
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+                                </svg>
+                              </button>
+                              {canDeleteRoute(route) && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setRouteToDelete(route);
+                                  }}
+                                  aria-label="Delete route"
+                                  className="size-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive transition-colors"
+                                >
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                                  </svg>
+                                </button>
+                              )}
                             </div>
 
-                            {ascents.length > 0 && (
-                              <div className="mt-3 pt-3 border-t border-border">
-                                <p className="text-xs text-muted-foreground mb-2">Recent climbers</p>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {ascents.slice(0, 5).map((a, i) => (
-                                    <span key={i} className="text-xs bg-muted px-2 py-1 rounded-md">
-                                      {a.user_name || 'Anonymous'}
-                                    </span>
-                                  ))}
+                            {/* Chevron */}
+                            <svg
+                              className={cn(
+                                "w-4 h-4 transition-all",
+                                isExpanded
+                                  ? "text-primary rotate-90"
+                                  : "text-muted-foreground/50 group-hover:text-muted-foreground"
+                              )}
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={2}
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                            </svg>
+                          </div>
+
+                          {/* Expanded Info Panel */}
+                          <AnimatePresence>
+                            {isExpanded && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="relative overflow-hidden"
+                              >
+                                <div className="px-2 pb-4 pt-2">
+                                  <div className="flex gap-6 text-sm">
+                                    <div>
+                                      <p className="text-muted-foreground text-xs mb-1">Grade</p>
+                                      <p className="font-bold text-primary">{displayGrade || 'Ungraded'}</p>
+                                      {route.grade_v && displayGrade !== route.grade_v && (
+                                        <p className="text-xs text-muted-foreground">Setter: {route.grade_v}</p>
+                                      )}
+                                    </div>
+                                    <div>
+                                      <p className="text-muted-foreground text-xs mb-1">Rating</p>
+                                      <div className="flex items-center gap-1.5">
+                                        <StarRating rating={Math.round(avgRating)} />
+                                        {avgRating > 0 && <span className="text-sm font-medium">{avgRating.toFixed(1)}</span>}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <p className="text-muted-foreground text-xs mb-1">Setter</p>
+                                      <p className="font-medium">{route.user_name || 'Anonymous'}</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-muted-foreground text-xs mb-1">Ascents</p>
+                                      <p className="font-bold">{ascents.length}</p>
+                                    </div>
+                                    {ascents.length > 0 && (
+                                      <div className="flex-1">
+                                        <p className="text-muted-foreground text-xs mb-1">Recent climbers</p>
+                                        <div className="flex flex-wrap gap-1.5">
+                                          {ascents.slice(0, 5).map((a, i) => (
+                                            <span key={i} className="text-xs bg-muted px-2 py-0.5 rounded">
+                                              {a.user_name || 'Anonymous'}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
+                              </motion.div>
                             )}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </motion.div>
-                  );
-                })}
-              </div>
+                          </AnimatePresence>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
             )}
           </>
         )}
