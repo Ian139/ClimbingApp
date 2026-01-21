@@ -3,7 +3,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { createClient } from '@/lib/supabase/client';
-import type { Route, Ascent } from '@/lib/types';
+import type { Route, Ascent, Comment } from '@/lib/types';
 
 interface RoutesState {
   routes: Route[];
@@ -18,6 +18,10 @@ interface RoutesState {
   addAscent: (routeId: string, ascent: Ascent) => Promise<void>;
   removeAscent: (routeId: string, ascentId: string) => Promise<void>;
   hasUserClimbed: (routeId: string, userId: string) => boolean;
+
+  // Comment actions
+  addComment: (routeId: string, comment: Comment) => Promise<void>;
+  deleteComment: (routeId: string, commentId: string) => Promise<void>;
 
   // Sync actions
   fetchRoutes: () => Promise<void>;
@@ -38,12 +42,13 @@ export const useRoutesStore = create<RoutesState>()(
         try {
           const supabase = createClient();
 
-          // Fetch all public routes with their ascents
+          // Fetch all public routes with their ascents and comments
           const { data: remoteRoutes, error } = await supabase
             .from('routes')
             .select(`
               *,
-              ascents (*)
+              ascents (*),
+              comments (*)
             `)
             .eq('is_public', true)
             .order('created_at', { ascending: false });
@@ -61,6 +66,7 @@ export const useRoutesStore = create<RoutesState>()(
                 ...r,
                 holds: r.holds || [],
                 ascents: r.ascents || [],
+                comments: r.comments || [],
               })),
               ...localRoutes.filter(lr => !remoteRoutes.some(rr => rr.id === lr.id))
             ];
@@ -254,6 +260,69 @@ export const useRoutesStore = create<RoutesState>()(
       hasUserClimbed: (routeId, userId) => {
         const route = get().routes.find((r) => r.id === routeId);
         return route?.ascents?.some((a) => a.user_id === userId) || false;
+      },
+
+      addComment: async (routeId, comment) => {
+        // Add to local state immediately
+        set((state) => ({
+          routes: state.routes.map((r) =>
+            r.id === routeId
+              ? {
+                  ...r,
+                  comments: [...(r.comments || []), comment],
+                  updated_at: new Date().toISOString(),
+                }
+              : r
+          ),
+        }));
+
+        // Try to save to Supabase
+        try {
+          const supabase = createClient();
+          const { data: { user } } = await supabase.auth.getUser();
+
+          const { error } = await supabase
+            .from('comments')
+            .insert({
+              id: comment.id,
+              route_id: routeId,
+              user_id: user?.id || null,
+              user_name: comment.user_name,
+              content: comment.content,
+              is_beta: comment.is_beta,
+            });
+
+          if (error) {
+            console.error('Error saving comment:', error);
+          }
+        } catch (error) {
+          console.error('Error saving comment:', error);
+        }
+      },
+
+      deleteComment: async (routeId, commentId) => {
+        set((state) => ({
+          routes: state.routes.map((r) =>
+            r.id === routeId
+              ? {
+                  ...r,
+                  comments: (r.comments || []).filter((c) => c.id !== commentId),
+                  updated_at: new Date().toISOString(),
+                }
+              : r
+          ),
+        }));
+
+        // Try to delete from Supabase
+        try {
+          const supabase = createClient();
+          await supabase
+            .from('comments')
+            .delete()
+            .eq('id', commentId);
+        } catch (error) {
+          console.error('Error deleting comment:', error);
+        }
       },
     }),
     {

@@ -29,12 +29,24 @@ export interface Ascent {
   created_at: string;
 }
 
+// Comment/Beta - user comments on routes
+export interface Comment {
+  id: string;
+  route_id: string;
+  user_id: string;
+  user_name?: string;
+  content: string;
+  is_beta: boolean; // True if this is beta/tips for the climb
+  created_at: string;
+}
+
 // Route types
 export interface Route {
   id: string;
   user_id: string;
   user_name?: string; // Setter's display name
   wall_id: string;
+  wall_image_url?: string; // Snapshot of wall image at route creation (for history)
   name: string;
   description?: string;
   grade_v?: string; // V-scale (V0, V1, V2, etc.)
@@ -48,6 +60,8 @@ export interface Route {
   updated_at: string;
   // Ascent data
   ascents?: Ascent[];
+  // Comments/Beta
+  comments?: Comment[];
   // Joined data
   wall?: Wall;
   user?: Profile;
@@ -91,9 +105,16 @@ export const HOLD_COLORS: Record<HoldType, string> = {
 
 // Hold sizes mapping (as % of wall)
 export const HOLD_SIZES: Record<HoldSize, string> = {
-  small: '3%',
+  small: '2.5%',
   medium: '4%',
-  large: '5%',
+  large: '7%',
+};
+
+// Hold border width mapping (in pixels)
+export const HOLD_BORDER_WIDTH: Record<HoldSize, number> = {
+  small: 2,     // Thin border
+  medium: 3,    // Medium border
+  large: 4,     // Thick border
 };
 
 // Grade options (V-scale)

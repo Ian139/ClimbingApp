@@ -76,7 +76,7 @@ export default function Home() {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
   const { selectedWall, setSelectedWall } = useWallStore();
-  const { walls, addWall, deleteWall, fetchWalls } = useWallsStore();
+  const { walls, addWall, updateWall, deleteWall, fetchWalls } = useWallsStore();
   const { routes, deleteRoute, addAscent, hasUserClimbed, fetchRoutes, isLoading: routesLoading } = useRoutesStore();
   const { userId, displayName, isModerator } = useUserStore();
   const startTransition = useTransitionStore((state) => state.startTransition);
@@ -89,6 +89,12 @@ export default function Home() {
   const [wallImage, setWallImage] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Wall photo update state
+  const [wallToUpdatePhoto, setWallToUpdatePhoto] = useState<Wall | null>(null);
+  const [newWallImage, setNewWallImage] = useState<string | null>(null);
+  const [isUpdatingPhoto, setIsUpdatingPhoto] = useState(false);
+  const updatePhotoInputRef = useRef<HTMLInputElement>(null);
 
   // Route delete state
   const [routeToDelete, setRouteToDelete] = useState<Route | null>(null);
@@ -207,6 +213,17 @@ export default function Home() {
     return isModerator || route.user_id === userId || route.user_id === 'local-user';
   };
 
+  // Check if user can edit a route (same permissions as delete)
+  const canEditRoute = (route: Route) => {
+    return isModerator || route.user_id === userId || route.user_id === 'local-user';
+  };
+
+  // Navigate to editor with route to edit
+  const handleEditRoute = (route: Route, e: React.MouseEvent) => {
+    e.stopPropagation();
+    router.push(`/editor?edit=${route.id}`);
+  };
+
   // Check if user can delete a wall (moderators can delete any wall, except default)
   const canDeleteWall = (wall: Wall) => {
     if (wall.id === 'default-wall') return false; // Never delete default wall
@@ -251,6 +268,44 @@ export default function Home() {
     setWallImage(null);
     setIsAdding(false);
     toast.success('Wall added!');
+  };
+
+  // Handle update wall photo
+  const handleUpdateWallPhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setNewWallImage(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleUpdateWallPhoto = async () => {
+    if (!wallToUpdatePhoto || !newWallImage) return;
+
+    setIsUpdatingPhoto(true);
+
+    await updateWall(wallToUpdatePhoto.id, {
+      image_url: newWallImage,
+    });
+
+    // If this was the selected wall, update it
+    if (selectedWall?.id === wallToUpdatePhoto.id) {
+      setSelectedWall({ ...wallToUpdatePhoto, image_url: newWallImage });
+    }
+
+    setWallToUpdatePhoto(null);
+    setNewWallImage(null);
+    setIsUpdatingPhoto(false);
+    toast.success('Wall photo updated! Existing routes will keep their original photo.');
+  };
+
+  // Check if user can update wall photo
+  const canUpdateWallPhoto = (wall: Wall) => {
+    if (wall.id === 'default-wall') return true; // Anyone can update default wall photo
+    return isModerator || wall.user_id === userId || wall.user_id === 'local-user';
   };
 
   // Navigate to editor with transition
@@ -837,6 +892,17 @@ export default function Home() {
                                     </svg>
                                     Log
                                   </button>
+                                  {canEditRoute(route) && (
+                                    <button
+                                      onClick={(e) => handleEditRoute(route, e)}
+                                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-500 text-sm font-medium"
+                                    >
+                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                      </svg>
+                                      Edit
+                                    </button>
+                                  )}
                                   {canDeleteRoute(route) && (
                                     <button
                                       onClick={(e) => {
@@ -959,6 +1025,17 @@ export default function Home() {
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
                                 </svg>
                               </button>
+                              {canEditRoute(route) && (
+                                <button
+                                  onClick={(e) => handleEditRoute(route, e)}
+                                  aria-label="Edit route"
+                                  className="size-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-blue-500 transition-colors"
+                                >
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                  </svg>
+                                </button>
+                              )}
                               {canDeleteRoute(route) && (
                                 <button
                                   onClick={(e) => {
@@ -1117,6 +1194,22 @@ export default function Home() {
                           <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                         </svg>
                       </div>
+                    )}
+                    {canUpdateWallPhoto(wall) && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setWallToUpdatePhoto(wall);
+                          setShowWallPicker(false);
+                        }}
+                        aria-label="Update wall photo"
+                        className="size-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+                        </svg>
+                      </button>
                     )}
                     {canDelete && (
                       <button
@@ -1298,15 +1391,113 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
+      {/* Update Wall Photo Dialog */}
+      <Dialog open={!!wallToUpdatePhoto} onOpenChange={() => {
+        setWallToUpdatePhoto(null);
+        setNewWallImage(null);
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Update Wall Photo</DialogTitle>
+            <DialogDescription>
+              Update the photo for "{wallToUpdatePhoto?.name}". Existing routes will keep their original photo.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <input
+              ref={updatePhotoInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleUpdateWallPhotoSelect}
+              className="hidden"
+            />
+
+            {/* Current photo */}
+            <div className="space-y-2">
+              <Label>Current Photo</Label>
+              <div className="aspect-video rounded-lg overflow-hidden bg-muted">
+                {wallToUpdatePhoto && (
+                  <img
+                    src={wallToUpdatePhoto.image_url}
+                    alt="Current wall"
+                    className="w-full h-full object-cover opacity-50"
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* New photo */}
+            <div className="space-y-2">
+              <Label>New Photo</Label>
+              {newWallImage ? (
+                <div
+                  onClick={() => updatePhotoInputRef.current?.click()}
+                  className="relative aspect-video rounded-lg overflow-hidden cursor-pointer"
+                >
+                  <img
+                    src={newWallImage}
+                    alt="New wall preview"
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                    <span className="text-white text-sm font-medium">Change photo</span>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => updatePhotoInputRef.current?.click()}
+                  className="w-full aspect-video rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center gap-2 text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors"
+                >
+                  <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                  </svg>
+                  <span className="text-sm">Select new photo</span>
+                </button>
+              )}
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              Note: All existing routes will continue to display the wall photo from when they were created.
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setWallToUpdatePhoto(null);
+                setNewWallImage(null);
+              }}
+              disabled={isUpdatingPhoto}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUpdateWallPhoto}
+              disabled={isUpdatingPhoto || !newWallImage}
+            >
+              {isUpdatingPhoto ? 'Updating...' : 'Update Photo'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Route Viewer Dialog */}
       <Dialog open={!!routeToView} onOpenChange={() => setRouteToView(null)}>
-        <DialogContent className="max-w-3xl h-[85vh] p-0 overflow-hidden">
+        <DialogContent
+          className="max-w-3xl h-[85vh] p-0 overflow-hidden border-0 bg-black/60 backdrop-blur-sm rounded-2xl shadow-2xl ring-1 ring-white/10"
+          showCloseButton={false}
+        >
           {routeToView && selectedWall && (
             <RouteViewer
-              wallImageUrl={selectedWall.image_url}
+              wallImageUrl={routeToView.wall_image_url || selectedWall.image_url}
               holds={routeToView.holds}
               routeName={routeToView.name}
               grade={calculateDisplayGrade(routeToView.grade_v, routeToView.ascents)}
+              setterName={routeToView.user_name}
+              routeId={routeToView.id}
+              comments={routeToView.comments || []}
             />
           )}
         </DialogContent>

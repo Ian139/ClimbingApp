@@ -1,6 +1,6 @@
 'use client';
 
-import { Hold, HOLD_SIZES } from '@/lib/types';
+import { Hold, HOLD_SIZES, HOLD_BORDER_WIDTH } from '@/lib/types';
 
 interface HoldMarkerProps {
   hold: Hold;
@@ -22,22 +22,27 @@ export function HoldMarker({
   // Get size in pixels (percentage of container width)
   const sizePercent = parseFloat(HOLD_SIZES[hold.size]);
   const size = (sizePercent / 100) * containerWidth;
-  const radius = size / 2;
+  const halfSize = size / 2;
+
+  // Get border width based on hold size
+  const borderWidth = HOLD_BORDER_WIDTH[hold.size];
 
   return (
     <div
       className="absolute pointer-events-none"
       style={{
-        left: `${x - radius}px`,
-        top: `${y - radius}px`,
+        left: `${x - halfSize}px`,
+        top: `${y - halfSize}px`,
         width: `${size}px`,
         height: `${size}px`,
       }}
     >
       {/* Hold circle */}
       <div
-        className="w-full h-full rounded-full border-4 transition-all"
+        className="w-full h-full rounded-full transition-all"
         style={{
+          borderWidth: `${borderWidth}px`,
+          borderStyle: 'solid',
           borderColor: hold.color,
           backgroundColor: `${hold.color}20`, // 20% opacity
         }}
