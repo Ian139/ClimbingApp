@@ -23,6 +23,12 @@ interface RoutesState {
   addComment: (routeId: string, comment: Comment) => Promise<void>;
   deleteComment: (routeId: string, commentId: string) => Promise<void>;
 
+  // View & Like actions
+  incrementViewCount: (routeId: string) => Promise<void>;
+  toggleLike: (routeId: string, userId: string) => Promise<void>;
+  isLikedByUser: (routeId: string, userId: string) => boolean;
+  getLikeCount: (routeId: string) => number;
+
   // Sync actions
   fetchRoutes: () => Promise<void>;
   syncLocalRoutes: () => Promise<void>;
@@ -41,9 +47,11 @@ export const useRoutesStore = create<RoutesState>()(
 
         try {
           const supabase = createClient();
+          const { data: { user } } = await supabase.auth.getUser();
+          const currentUserId = user?.id || 'local-user';
 
-          // Fetch all public routes with their ascents and comments
-          const { data: remoteRoutes, error } = await supabase
+          // Try fetching routes with related data
+          const result = await supabase
             .from('routes')
             .select(`
               *,
@@ -53,21 +61,46 @@ export const useRoutesStore = create<RoutesState>()(
             .eq('is_public', true)
             .order('created_at', { ascending: false });
 
-          if (error) {
-            console.error('Error fetching routes:', error);
+          if (result.error) {
+            // Supabase not configured - keep existing local data
+            set({ isLoading: false });
             return;
           }
 
+          // Fetch likes separately to avoid join issues
+          const { data: allLikes } = await supabase
+            .from('route_likes')
+            .select('route_id, user_id');
+
+          // Group likes by route_id
+          const likesByRoute: Record<string, string[]> = {};
+          (allLikes || []).forEach((like: any) => {
+            if (!likesByRoute[like.route_id]) {
+              likesByRoute[like.route_id] = [];
+            }
+            likesByRoute[like.route_id].push(like.user_id);
+          });
+
+          const remoteRoutes = result.data?.map(r => {
+            const likedBy = likesByRoute[r.id] || [];
+            return {
+              ...r,
+              holds: r.holds || [],
+              ascents: r.ascents || [],
+              comments: r.comments || [],
+              liked_by: likedBy,
+              like_count: likedBy.length,
+              is_liked: likedBy.includes(currentUserId),
+            };
+          });
+
           if (remoteRoutes) {
-            // Merge with local routes (keep local-only routes)
-            const localRoutes = get().routes.filter(r => r.user_id === 'local-user');
+            // Keep local-only routes
+            const existingRoutes = get().routes;
+            const localRoutes = existingRoutes.filter(r => r.user_id === 'local-user');
+
             const mergedRoutes = [
-              ...remoteRoutes.map(r => ({
-                ...r,
-                holds: r.holds || [],
-                ascents: r.ascents || [],
-                comments: r.comments || [],
-              })),
+              ...remoteRoutes,
               ...localRoutes.filter(lr => !remoteRoutes.some(rr => rr.id === lr.id))
             ];
 
@@ -76,9 +109,11 @@ export const useRoutesStore = create<RoutesState>()(
               lastFetched: new Date().toISOString(),
               isLoading: false
             });
+          } else {
+            set({ isLoading: false });
           }
         } catch (error) {
-          console.error('Error fetching routes:', error);
+          // Network error - keep existing local data
           set({ isLoading: false });
         }
       },
@@ -93,7 +128,7 @@ export const useRoutesStore = create<RoutesState>()(
         const localRoutes = get().routes.filter(r => r.user_id === 'local-user');
 
         for (const route of localRoutes) {
-          const { ascents, wall, user: routeUser, is_liked, like_count, ...routeData } = route;
+          const { ascents, wall, user: routeUser, is_liked, like_count, liked_by, comments, ...routeData } = route;
 
           const { error } = await supabase
             .from('routes')
@@ -125,7 +160,7 @@ export const useRoutesStore = create<RoutesState>()(
           const supabase = createClient();
           const { data: { user } } = await supabase.auth.getUser();
 
-          const { ascents, wall, user: routeUser, is_liked, like_count, ...routeData } = route;
+          const { ascents, wall, user: routeUser, is_liked, like_count, liked_by, comments, ...routeData } = route;
 
           const { error } = await supabase
             .from('routes')
@@ -135,11 +170,9 @@ export const useRoutesStore = create<RoutesState>()(
               is_public: true,
             });
 
-          if (error) {
-            console.error('Error saving route to Supabase:', error);
-          }
+          // Silently handle errors - local state is already updated
         } catch (error) {
-          console.error('Error saving route:', error);
+          // Supabase not configured or offline - local state is already saved
         }
       },
 
@@ -156,7 +189,7 @@ export const useRoutesStore = create<RoutesState>()(
           const route = get().routes.find(r => r.id === id);
 
           if (route && route.user_id !== 'local-user') {
-            const { ascents, wall, user, is_liked, like_count, ...safeUpdates } = updates as any;
+            const { ascents, wall, user, is_liked, like_count, liked_by, comments, ...safeUpdates } = updates as any;
 
             await supabase
               .from('routes')
@@ -164,7 +197,7 @@ export const useRoutesStore = create<RoutesState>()(
               .eq('id', id);
           }
         } catch (error) {
-          console.error('Error updating route:', error);
+          // Supabase not configured or offline - local state is already updated
         }
       },
 
@@ -185,7 +218,7 @@ export const useRoutesStore = create<RoutesState>()(
               .eq('id', id);
           }
         } catch (error) {
-          console.error('Error deleting route:', error);
+          // Supabase not configured or offline - local state is already updated
         }
       },
 
@@ -224,11 +257,9 @@ export const useRoutesStore = create<RoutesState>()(
               flashed: ascent.flashed,
             });
 
-          if (error) {
-            console.error('Error saving ascent:', error);
-          }
+          // Silently handle errors - local state is already updated
         } catch (error) {
-          console.error('Error saving ascent:', error);
+          // Supabase not configured or offline - local state is already saved
         }
       },
 
@@ -253,7 +284,7 @@ export const useRoutesStore = create<RoutesState>()(
             .delete()
             .eq('id', ascentId);
         } catch (error) {
-          console.error('Error deleting ascent:', error);
+          // Supabase not configured or offline - local state is already updated
         }
       },
 
@@ -292,11 +323,9 @@ export const useRoutesStore = create<RoutesState>()(
               is_beta: comment.is_beta,
             });
 
-          if (error) {
-            console.error('Error saving comment:', error);
-          }
+          // Silently handle errors - local state is already updated
         } catch (error) {
-          console.error('Error saving comment:', error);
+          // Supabase not configured or offline - local state is already saved
         }
       },
 
@@ -321,8 +350,111 @@ export const useRoutesStore = create<RoutesState>()(
             .delete()
             .eq('id', commentId);
         } catch (error) {
-          console.error('Error deleting comment:', error);
+          // Supabase not configured or offline - local state is already updated
         }
+      },
+
+      incrementViewCount: async (routeId) => {
+        const route = get().routes.find(r => r.id === routeId);
+        const newViewCount = (route?.view_count || 0) + 1;
+
+        // Update local state
+        set((state) => ({
+          routes: state.routes.map((r) =>
+            r.id === routeId
+              ? { ...r, view_count: newViewCount }
+              : r
+          ),
+        }));
+
+        // Try to update in Supabase
+        try {
+          const supabase = createClient();
+          if (route && route.user_id !== 'local-user') {
+            await supabase
+              .from('routes')
+              .update({ view_count: newViewCount })
+              .eq('id', routeId);
+          }
+        } catch (error) {
+          // Supabase not configured - local state is already updated
+        }
+      },
+
+      toggleLike: async (routeId, localUserId) => {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        const oderId = user?.id || localUserId;
+
+        const route = get().routes.find(r => r.id === routeId);
+        if (!route) return;
+
+        // Get current likes array or initialize
+        const currentLikes = route.liked_by || [];
+        const isCurrentlyLiked = currentLikes.includes(oderId);
+        const newLikes = isCurrentlyLiked
+          ? currentLikes.filter((id: string) => id !== oderId)
+          : [...currentLikes, oderId];
+
+        // Update local state immediately
+        set((state) => ({
+          routes: state.routes.map((r) =>
+            r.id === routeId
+              ? {
+                  ...r,
+                  liked_by: newLikes,
+                  like_count: newLikes.length,
+                  is_liked: !isCurrentlyLiked,
+                }
+              : r
+          ),
+        }));
+
+        // Sync to Supabase for authenticated users
+        if (user) {
+          try {
+            if (isCurrentlyLiked) {
+              await supabase
+                .from('route_likes')
+                .delete()
+                .eq('route_id', routeId)
+                .eq('user_id', user.id);
+            } else {
+              await supabase
+                .from('route_likes')
+                .insert({ route_id: routeId, user_id: user.id });
+            }
+          } catch (error) {
+            // Revert on error
+            set((state) => ({
+              routes: state.routes.map((r) =>
+                r.id === routeId
+                  ? {
+                      ...r,
+                      liked_by: currentLikes,
+                      like_count: currentLikes.length,
+                      is_liked: isCurrentlyLiked,
+                    }
+                  : r
+              ),
+            }));
+          }
+        }
+      },
+
+      isLikedByUser: (routeId, oderId) => {
+        const route = get().routes.find(r => r.id === routeId);
+        if (!route) return false;
+        // Check is_liked first (set during fetch with correct user), fallback to liked_by array
+        if (route.is_liked !== undefined) return route.is_liked;
+        const likedBy = route.liked_by || [];
+        return likedBy.includes(oderId);
+      },
+
+      getLikeCount: (routeId) => {
+        const route = get().routes.find(r => r.id === routeId);
+        if (!route) return 0;
+        return route.liked_by?.length || route.like_count || 0;
       },
     }),
     {

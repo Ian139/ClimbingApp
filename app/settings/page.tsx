@@ -242,7 +242,7 @@ export default function SettingsPage() {
 
         {/* App Info */}
         <section className="pt-8 pb-4 text-center">
-          <p className="text-xs text-muted-foreground">ClimbSet v1.0.0</p>
+          <p className="text-xs text-muted-foreground">ClimbSet v1.1.2</p>
         </section>
       </main>
 

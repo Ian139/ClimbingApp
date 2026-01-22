@@ -77,7 +77,7 @@ export default function Home() {
   const { theme, setTheme } = useTheme();
   const { selectedWall, setSelectedWall } = useWallStore();
   const { walls, addWall, updateWall, deleteWall, fetchWalls } = useWallsStore();
-  const { routes, deleteRoute, addAscent, hasUserClimbed, fetchRoutes, isLoading: routesLoading } = useRoutesStore();
+  const { routes, deleteRoute, addAscent, hasUserClimbed, fetchRoutes, isLoading: routesLoading, incrementViewCount, toggleLike, isLikedByUser, getLikeCount } = useRoutesStore();
   const { userId, displayName, isModerator } = useUserStore();
   const startTransition = useTransitionStore((state) => state.startTransition);
   const [mounted, setMounted] = useState(false);
@@ -104,6 +104,18 @@ export default function Home() {
 
   // Route viewer state
   const [routeToView, setRouteToView] = useState<Route | null>(null);
+
+  // Handle viewing a route (increments view count)
+  const handleViewRoute = (route: Route) => {
+    setRouteToView(route);
+    incrementViewCount(route.id);
+  };
+
+  // Handle like toggle
+  const handleToggleLike = (route: Route, e: React.MouseEvent) => {
+    e.stopPropagation();
+    toggleLike(route.id, userId || 'local-user');
+  };
 
   // Log climb state
   const [routeToLog, setRouteToLog] = useState<Route | null>(null);
@@ -184,11 +196,18 @@ export default function Home() {
         case 'name':
           return a.name.localeCompare(b.name);
         case 'grade-asc':
-          return gradeToNumber(a.grade_v) - gradeToNumber(b.grade_v);
+          return gradeToNumber(calculateDisplayGrade(a.grade_v, a.ascents)) - gradeToNumber(calculateDisplayGrade(b.grade_v, b.ascents));
         case 'grade-desc':
-          return gradeToNumber(b.grade_v) - gradeToNumber(a.grade_v);
+          return gradeToNumber(calculateDisplayGrade(b.grade_v, b.ascents)) - gradeToNumber(calculateDisplayGrade(a.grade_v, a.ascents));
         case 'rating':
-          return (b.rating || 0) - (a.rating || 0);
+          // Calculate average rating from ascents
+          const aAscents = a.ascents || [];
+          const bAscents = b.ascents || [];
+          const aRatings = aAscents.filter(asc => asc.rating).map(asc => asc.rating!);
+          const bRatings = bAscents.filter(asc => asc.rating).map(asc => asc.rating!);
+          const aAvg = aRatings.length > 0 ? aRatings.reduce((sum, r) => sum + r, 0) / aRatings.length : 0;
+          const bAvg = bRatings.length > 0 ? bRatings.reduce((sum, r) => sum + r, 0) / bRatings.length : 0;
+          return bAvg - aAvg;
         default:
           return 0;
       }
@@ -505,15 +524,22 @@ export default function Home() {
       {/* Routes List */}
       <main className="px-4 md:px-8 mt-2">
         {!selectedWall ? (
-          <div className="py-16 text-center">
-            <div className="size-16 rounded-2xl bg-muted mx-auto mb-4 flex items-center justify-center">
-              <svg className="w-8 h-8 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <div className="py-12 text-center max-w-sm mx-auto">
+            <div className="size-20 rounded-2xl bg-gradient-to-br from-primary/20 to-secondary/20 mx-auto mb-6 flex items-center justify-center">
+              <svg className="w-10 h-10 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
               </svg>
             </div>
-            <h3 className="font-semibold mb-1">No wall selected</h3>
-            <p className="text-sm text-muted-foreground mb-4">Choose a wall to see routes</p>
-            <Button onClick={() => setShowWallPicker(true)}>Select Wall</Button>
+            <h3 className="text-lg font-semibold mb-2">Welcome to ClimbSet</h3>
+            <p className="text-sm text-muted-foreground mb-6">
+              Start by selecting or adding a climbing wall. Take a photo of your wall to begin setting routes.
+            </p>
+            <Button onClick={() => setShowWallPicker(true)} size="lg" className="gap-2">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+              </svg>
+              Get Started
+            </Button>
           </div>
         ) : (
           <>
@@ -698,15 +724,43 @@ export default function Home() {
                 <p className="text-sm text-muted-foreground">Try adjusting your search or filters</p>
               </div>
             ) : wallRoutes.length === 0 ? (
-              <div className="py-16 text-center">
-                <div className="size-16 rounded-2xl bg-muted mx-auto mb-4 flex items-center justify-center">
-                  <svg className="w-8 h-8 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <div className="py-12 text-center max-w-sm mx-auto">
+                <div className="size-20 rounded-2xl bg-gradient-to-br from-primary/20 to-secondary/20 mx-auto mb-6 flex items-center justify-center">
+                  <svg className="w-10 h-10 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                   </svg>
                 </div>
-                <h3 className="font-semibold mb-1">No routes yet</h3>
-                <p className="text-sm text-muted-foreground mb-4">Create your first route on {selectedWall.name}</p>
-                <Button onClick={handleNewRoute}>Create Route</Button>
+                <h3 className="text-lg font-semibold mb-2">Create your first route</h3>
+                <p className="text-sm text-muted-foreground mb-6">
+                  Tap on the wall to place holds and build climbing routes. Mark start holds, hand holds, foot chips, and the finish.
+                </p>
+                <Button onClick={handleNewRoute} size="lg" className="gap-2">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                  Create Route
+                </Button>
+                <div className="mt-8 pt-6 border-t border-border/50">
+                  <p className="text-xs text-muted-foreground mb-3">Quick tips</p>
+                  <div className="flex justify-center gap-4 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1.5">
+                      <div className="size-2.5 rounded-full bg-green-500" />
+                      <span>Start</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="size-2.5 rounded-full bg-red-500" />
+                      <span>Hands</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="size-2.5 rounded-full bg-blue-500" />
+                      <span>Feet</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="size-2.5 rounded-full bg-yellow-500" />
+                      <span>Finish</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             ) : (
               <>
@@ -735,7 +789,7 @@ export default function Home() {
                         )} />
 
                         <div
-                          onClick={() => setRouteToView(route)}
+                          onClick={() => handleViewRoute(route)}
                           className="relative flex items-center gap-3 py-4 cursor-pointer"
                         >
                           {/* Grade */}
@@ -770,6 +824,26 @@ export default function Home() {
 
                           {/* Actions */}
                           <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              onClick={(e) => handleToggleLike(route, e)}
+                              aria-label="Like route"
+                              className={cn(
+                                "size-9 rounded-lg flex items-center justify-center transition-colors",
+                                isLikedByUser(route.id, userId || 'local-user')
+                                  ? "text-red-500"
+                                  : "text-muted-foreground"
+                              )}
+                            >
+                              <svg
+                                className="w-5 h-5"
+                                fill={isLikedByUser(route.id, userId || 'local-user') ? "currentColor" : "none"}
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                strokeWidth={2}
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
+                              </svg>
+                            </button>
                             <button
                               onClick={(e) => openLogDialog(route, e)}
                               aria-label="Log climb"
@@ -822,7 +896,7 @@ export default function Home() {
                             >
                               <div className="pb-4 space-y-3">
                                 {/* Stats Grid */}
-                                <div className="grid grid-cols-4 gap-2">
+                                <div className="grid grid-cols-5 gap-2">
                                   <div className="text-center">
                                     <p className="text-muted-foreground text-xs">Grade</p>
                                     <p className="font-bold text-primary">{displayGrade || '—'}</p>
@@ -838,12 +912,16 @@ export default function Home() {
                                     </div>
                                   </div>
                                   <div className="text-center">
-                                    <p className="text-muted-foreground text-xs">Holds</p>
-                                    <p className="font-bold">{route.holds.length}</p>
+                                    <p className="text-muted-foreground text-xs">Sends</p>
+                                    <p className="font-bold">{ascents.length}</p>
                                   </div>
                                   <div className="text-center">
-                                    <p className="text-muted-foreground text-xs">Ascents</p>
-                                    <p className="font-bold">{ascents.length}</p>
+                                    <p className="text-muted-foreground text-xs">Likes</p>
+                                    <p className="font-bold">{getLikeCount(route.id)}</p>
+                                  </div>
+                                  <div className="text-center">
+                                    <p className="text-muted-foreground text-xs">Views</p>
+                                    <p className="font-bold">{route.view_count || 0}</p>
                                   </div>
                                 </div>
 
@@ -953,7 +1031,7 @@ export default function Home() {
                           )} />
 
                           <div
-                            onClick={() => setRouteToView(route)}
+                            onClick={() => handleViewRoute(route)}
                             className="relative flex items-center gap-6 py-4 px-2 cursor-pointer"
                           >
                             {/* Grade */}
@@ -997,6 +1075,26 @@ export default function Home() {
                               "flex items-center gap-2 transition-opacity duration-200",
                               isExpanded ? "opacity-100" : "opacity-0 group-hover:opacity-100"
                             )}>
+                              <button
+                                onClick={(e) => handleToggleLike(route, e)}
+                                aria-label="Like route"
+                                className={cn(
+                                  "size-8 rounded-lg flex items-center justify-center transition-colors",
+                                  isLikedByUser(route.id, userId || 'local-user')
+                                    ? "text-red-500"
+                                    : "text-muted-foreground hover:text-red-500"
+                                )}
+                              >
+                                <svg
+                                  className="w-4 h-4"
+                                  fill={isLikedByUser(route.id, userId || 'local-user') ? "currentColor" : "none"}
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                  strokeWidth={2}
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
+                                </svg>
+                              </button>
                               <button
                                 onClick={(e) => openLogDialog(route, e)}
                                 aria-label="Log climb"
@@ -1100,8 +1198,16 @@ export default function Home() {
                                       <p className="font-medium">{route.user_name || 'Anonymous'}</p>
                                     </div>
                                     <div>
-                                      <p className="text-muted-foreground text-xs mb-1">Ascents</p>
+                                      <p className="text-muted-foreground text-xs mb-1">Sends</p>
                                       <p className="font-bold">{ascents.length}</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-muted-foreground text-xs mb-1">Likes</p>
+                                      <p className="font-bold text-red-500">{getLikeCount(route.id)}</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-muted-foreground text-xs mb-1">Views</p>
+                                      <p className="font-bold">{route.view_count || 0}</p>
                                     </div>
                                     {ascents.length > 0 && (
                                       <div className="flex-1">
@@ -1488,7 +1594,11 @@ export default function Home() {
         <DialogContent
           className="max-w-3xl h-[85vh] p-0 overflow-hidden border-0 bg-black/60 backdrop-blur-sm rounded-2xl shadow-2xl ring-1 ring-white/10"
           showCloseButton={false}
+          aria-describedby={undefined}
         >
+          <DialogTitle className="sr-only">
+            {routeToView?.name || 'Route Viewer'}
+          </DialogTitle>
           {routeToView && selectedWall && (
             <RouteViewer
               wallImageUrl={routeToView.wall_image_url || selectedWall.image_url}

@@ -67,6 +67,7 @@ export interface Route {
   user?: Profile;
   is_liked?: boolean;
   like_count?: number;
+  liked_by?: string[]; // Array of user IDs who liked this route
 }
 
 // Wall types

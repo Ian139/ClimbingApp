@@ -14,6 +14,34 @@ const gradeToNumber = (grade?: string): number => {
   return index >= 0 ? index : -1;
 };
 
+// Convert numeric grade back to V grade string
+const numberToGrade = (num: number): string | undefined => {
+  const rounded = Math.round(num);
+  if (rounded >= 0 && rounded < V_GRADES.length) {
+    return V_GRADES[rounded];
+  }
+  return undefined;
+};
+
+// Calculate display grade: half setter's grade + average of user grades
+const calculateDisplayGrade = (setterGrade?: string, ascents?: { grade_v?: string }[]): string | undefined => {
+  const setterNum = gradeToNumber(setterGrade);
+  const userGrades = (ascents || [])
+    .map(a => gradeToNumber(a.grade_v))
+    .filter(g => g >= 0);
+
+  if (setterNum < 0 && userGrades.length === 0) return undefined;
+  if (setterNum >= 0 && userGrades.length === 0) return setterGrade;
+  if (setterNum < 0 && userGrades.length > 0) {
+    const avgUser = userGrades.reduce((sum, g) => sum + g, 0) / userGrades.length;
+    return numberToGrade(avgUser);
+  }
+
+  const avgUser = userGrades.reduce((sum, g) => sum + g, 0) / userGrades.length;
+  const combined = (setterNum * 0.5) + (avgUser * 0.5);
+  return numberToGrade(combined);
+};
+
 export default function ProfilePage() {
   const { user, displayName, userId, isAuthenticated } = useUserStore();
   const { routes, fetchRoutes } = useRoutesStore();
@@ -42,12 +70,13 @@ export default function ProfilePage() {
       ? (flashedAscents.length / userAscents.length) * 100
       : 0;
 
-    // Grade distribution (pyramid)
+    // Grade distribution (pyramid) - using display grades
     const gradeDistribution: Record<string, number> = {};
     userAscents.forEach(a => {
-      const grade = a.grade_v;
-      if (grade) {
-        gradeDistribution[grade] = (gradeDistribution[grade] || 0) + 1;
+      const route = routes.find(r => r.id === a.route_id);
+      const displayGrade = route ? calculateDisplayGrade(route.grade_v, route.ascents) : undefined;
+      if (displayGrade) {
+        gradeDistribution[displayGrade] = (gradeDistribution[displayGrade] || 0) + 1;
       }
     });
 
@@ -62,16 +91,21 @@ export default function ProfilePage() {
       .slice(0, 10)
       .map(ascent => {
         const route = routes.find(r => r.id === ascent.route_id);
+        const displayGrade = route ? calculateDisplayGrade(route.grade_v, route.ascents) : undefined;
         return {
           ...ascent,
           routeName: route?.name || 'Unknown Route',
-          routeGrade: route?.grade_v,
+          routeGrade: displayGrade,
+          userGrade: ascent.grade_v, // What the user graded it
         };
       });
 
-    // Highest grade sent
+    // Highest grade sent (using display grades)
     const highestGrade = userAscents
-      .map(a => a.grade_v)
+      .map(a => {
+        const route = routes.find(r => r.id === a.route_id);
+        return route ? calculateDisplayGrade(route.grade_v, route.ascents) : undefined;
+      })
       .filter(Boolean)
       .sort((a, b) => gradeToNumber(b) - gradeToNumber(a))[0];
 
@@ -220,12 +254,16 @@ export default function ProfilePage() {
                   <div>
                     <p className="font-medium">
                       {activity.routeName}
-                      {activity.grade_v && (
-                        <span className="text-primary font-bold ml-2">{activity.grade_v}</span>
+                      {activity.routeGrade && (
+                        <span className="text-primary font-bold ml-2">{activity.routeGrade}</span>
                       )}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {activity.flashed ? 'Flashed' : 'Sent'} • {new Date(activity.created_at).toLocaleDateString()}
+                      {activity.flashed ? 'Flashed' : 'Sent'}
+                      {activity.userGrade && activity.userGrade !== activity.routeGrade && (
+                        <span> • You: {activity.userGrade}</span>
+                      )}
+                      {' • '}{new Date(activity.created_at).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
@@ -255,7 +293,7 @@ export default function ProfilePage() {
 
         {/* App Info */}
         <section className="pt-4 pb-4 text-center">
-          <p className="text-xs text-muted-foreground">ClimbSet v1.0.0</p>
+          <p className="text-xs text-muted-foreground">ClimbSet v1.1.2</p>
         </section>
       </main>
     </div>
