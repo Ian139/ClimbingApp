@@ -2,11 +2,13 @@
 
 import { useState, useRef, useEffect, useMemo, useSyncExternalStore } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { motion, AnimatePresence } from 'motion/react';
+import { createClient } from '@/lib/supabase/client';
 import { useWallStore } from '@/lib/stores/wall-store';
-import { useWallsStore } from '@/lib/stores/walls-store';
+import { useWallsStore, DEFAULT_WALL } from '@/lib/stores/walls-store';
 import { useRoutesStore } from '@/lib/stores/routes-store';
 import { useUserStore } from '@/lib/stores/user-store';
 import { useTransitionStore } from '@/lib/stores/transition-store';
@@ -21,6 +23,7 @@ import type { Wall, Route, Ascent } from '@/lib/types';
 import { HOLD_COLORS, V_GRADES } from '@/lib/types';
 import { RouteViewer } from '@/components/wall/RouteViewer';
 import { Textarea } from '@/components/ui/textarea';
+import { compressImage } from '@/lib/utils/image';
 
 const useIsClient = () =>
   useSyncExternalStore(
@@ -145,12 +148,14 @@ export default function Home() {
   const [showAddWall, setShowAddWall] = useState(false);
   const [wallName, setWallName] = useState('');
   const [wallImage, setWallImage] = useState<string | null>(null);
+  const [wallImageFile, setWallImageFile] = useState<File | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Wall photo update state
   const [wallToUpdatePhoto, setWallToUpdatePhoto] = useState<Wall | null>(null);
   const [newWallImage, setNewWallImage] = useState<string | null>(null);
+  const [newWallImageFile, setNewWallImageFile] = useState<File | null>(null);
   const [isUpdatingPhoto, setIsUpdatingPhoto] = useState(false);
   const updatePhotoInputRef = useRef<HTMLInputElement>(null);
 
@@ -213,6 +218,38 @@ export default function Home() {
     loadData();
   }, [fetchWalls, fetchRoutes]);
 
+  // Ensure walls exist locally for any fetched routes (important for new devices)
+  useEffect(() => {
+    if (routes.length === 0) return;
+
+    const knownWallIds = new Set(walls.map((w) => w.id));
+    const missingWalls = new Map<string, { imageUrl?: string }>();
+
+    routes.forEach((route) => {
+      if (!route.wall_id || route.wall_id === 'default-wall') return;
+      if (knownWallIds.has(route.wall_id)) return;
+      if (!missingWalls.has(route.wall_id)) {
+        missingWalls.set(route.wall_id, { imageUrl: route.wall_image_url });
+      }
+    });
+
+    if (missingWalls.size === 0) return;
+
+    missingWalls.forEach((meta, wallId) => {
+      addWall({
+        id: wallId,
+        user_id: 'local-user',
+        name: `Imported Wall ${wallId.slice(0, 4).toUpperCase()}`,
+        image_url: meta.imageUrl || DEFAULT_WALL.image_url,
+        image_width: 1920,
+        image_height: 1080,
+        is_public: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+    });
+  }, [routes, walls, addWall]);
+
   // Auto-select first wall if none selected
   useEffect(() => {
     if (!selectedWall && walls.length > 0) {
@@ -220,11 +257,15 @@ export default function Home() {
     }
   }, [selectedWall, walls, setSelectedWall]);
 
+  const allWallsSelected = selectedWall?.id === 'all-walls';
+
   // Get routes for selected wall with search, sort, and filter
   const wallRoutes = useMemo(() => {
     if (!selectedWall) return [];
 
-    let filtered = routes.filter((r) => r.wall_id === selectedWall.id);
+    let filtered = allWallsSelected
+      ? [...routes]
+      : routes.filter((r) => r.wall_id === selectedWall.id);
 
     // Search filter
     if (searchQuery.trim()) {
@@ -269,18 +310,18 @@ export default function Home() {
     });
 
     return filtered;
-  }, [selectedWall, routes, searchQuery, sortBy, filterGrade]);
+  }, [selectedWall, routes, searchQuery, sortBy, filterGrade, allWallsSelected]);
 
   // Get unique grades from wall routes for filter dropdown
   const availableGrades = useMemo(() => {
     if (!selectedWall) return [];
     const grades = routes
-      .filter(r => r.wall_id === selectedWall.id && r.grade_v)
+      .filter(r => (allWallsSelected || r.wall_id === selectedWall.id) && r.grade_v)
       .map(r => r.grade_v!)
       .filter((grade, index, self) => self.indexOf(grade) === index)
       .sort((a, b) => gradeToNumber(a) - gradeToNumber(b));
     return grades;
-  }, [selectedWall, routes]);
+  }, [selectedWall, routes, allWallsSelected]);
 
   // Check if user can delete a route (moderators can delete any route)
   const canDeleteRoute = (route: Route) => {
@@ -304,76 +345,118 @@ export default function Home() {
     return isModerator || wall.user_id === userId || wall.user_id === 'local-user';
   };
 
+  const createPreviewUrl = (file: File) => URL.createObjectURL(file);
+
+  const revokePreviewUrl = (url: string | null) => {
+    if (url) URL.revokeObjectURL(url);
+  };
+
+  const uploadWallImage = async (file: File, wallId: string) => {
+    const supabase = createClient();
+    const compressed = await compressImage(file, {
+      maxWidth: 1920,
+      maxHeight: 1920,
+      quality: 0.82,
+      mimeType: 'image/jpeg',
+    });
+
+    const filePath = `${wallId}/${Date.now()}.jpg`;
+    const { error } = await supabase.storage
+      .from('walls')
+      .upload(filePath, compressed, { contentType: 'image/jpeg' });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const { data } = supabase.storage.from('walls').getPublicUrl(filePath);
+    return data.publicUrl;
+  };
+
   // Handle image selection
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setWallImage(e.target?.result as string);
-      };
-      reader.readAsDataURL(file);
+      revokePreviewUrl(wallImage);
+      setWallImageFile(file);
+      setWallImage(createPreviewUrl(file));
     }
   };
 
   // Handle add wall
-  const handleAddWall = () => {
-    if (!wallName.trim() || !wallImage) return;
+  const handleAddWall = async () => {
+    if (!wallName.trim() || !wallImageFile) return;
 
     setIsAdding(true);
 
-    const newWall: Wall = {
-      id: crypto.randomUUID(),
-      user_id: userId || 'local-user',
-      name: wallName.trim(),
-      image_url: wallImage,
-      image_width: 1920,
-      image_height: 1080,
-      is_public: false,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
+    try {
+      const wallId = crypto.randomUUID();
+      const imageUrl = await uploadWallImage(wallImageFile, wallId);
 
-    addWall(newWall);
-    setSelectedWall(newWall);
-    setShowAddWall(false);
-    setShowWallPicker(false);
-    setWallName('');
-    setWallImage(null);
-    setIsAdding(false);
-    toast.success('Wall added!');
+      const newWall: Wall = {
+        id: wallId,
+        user_id: userId || 'local-user',
+        name: wallName.trim(),
+        image_url: imageUrl,
+        image_width: 1920,
+        image_height: 1080,
+        is_public: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      addWall(newWall);
+      setSelectedWall(newWall);
+      setShowAddWall(false);
+      setShowWallPicker(false);
+      setWallName('');
+      revokePreviewUrl(wallImage);
+      setWallImage(null);
+      setWallImageFile(null);
+      setIsAdding(false);
+      toast.success('Wall added!');
+    } catch (error) {
+      setIsAdding(false);
+      toast.error(error instanceof Error ? error.message : 'Failed to upload wall image');
+    }
   };
 
   // Handle update wall photo
   const handleUpdateWallPhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setNewWallImage(e.target?.result as string);
-      };
-      reader.readAsDataURL(file);
+      revokePreviewUrl(newWallImage);
+      setNewWallImageFile(file);
+      setNewWallImage(createPreviewUrl(file));
     }
   };
 
   const handleUpdateWallPhoto = async () => {
-    if (!wallToUpdatePhoto || !newWallImage) return;
+    if (!wallToUpdatePhoto || !newWallImageFile) return;
 
     setIsUpdatingPhoto(true);
 
-    await updateWall(wallToUpdatePhoto.id, {
-      image_url: newWallImage,
-    });
+    try {
+      const imageUrl = await uploadWallImage(newWallImageFile, wallToUpdatePhoto.id);
+      await updateWall(wallToUpdatePhoto.id, {
+        image_url: imageUrl,
+      });
 
-    // If this was the selected wall, update it
-    if (selectedWall?.id === wallToUpdatePhoto.id) {
-      setSelectedWall({ ...wallToUpdatePhoto, image_url: newWallImage });
+      // If this was the selected wall, update it
+      if (selectedWall?.id === wallToUpdatePhoto.id) {
+        setSelectedWall({ ...wallToUpdatePhoto, image_url: imageUrl });
+      }
+
+      setWallToUpdatePhoto(null);
+      revokePreviewUrl(newWallImage);
+      setNewWallImage(null);
+      setNewWallImageFile(null);
+      setIsUpdatingPhoto(false);
+      toast.success('Wall photo updated! Existing routes will keep their original photo.');
+    } catch (error) {
+      setIsUpdatingPhoto(false);
+      toast.error(error instanceof Error ? error.message : 'Failed to update wall photo');
     }
-
-    setWallToUpdatePhoto(null);
-    setNewWallImage(null);
-    setIsUpdatingPhoto(false);
-    toast.success('Wall photo updated! Existing routes will keep their original photo.');
   };
 
   // Check if user can update wall photo
@@ -385,6 +468,9 @@ export default function Home() {
   // Navigate to editor with transition
   const handleNewRoute = (e: React.MouseEvent) => {
     e.preventDefault();
+    if (allWallsSelected) {
+      setSelectedWall(DEFAULT_WALL);
+    }
     const rect = e.currentTarget.getBoundingClientRect();
     startTransition(rect.left + rect.width / 2, rect.top + rect.height / 2);
     setTimeout(() => router.push('/editor'), 100);
@@ -1241,20 +1327,6 @@ export default function Home() {
         )}
       </main>
 
-      {/* Floating Action Button - raised on mobile to clear bottom nav */}
-      {selectedWall && (
-        <div className="fixed bottom-20 md:bottom-6 right-4 z-40">
-          <button
-            onClick={handleNewRoute}
-            className="size-14 rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/25 flex items-center justify-center hover:scale-105 active:scale-95 transition-transform"
-          >
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-          </button>
-        </div>
-      )}
-
       {/* Wall Picker Dialog */}
       <Dialog open={showWallPicker} onOpenChange={setShowWallPicker}>
         <DialogContent className="max-h-[80vh] overflow-y-auto">
@@ -1263,6 +1335,53 @@ export default function Home() {
           </DialogHeader>
 
           <div className="space-y-2 mt-2">
+            {/* All Walls option */}
+            <div
+              className={cn(
+                'w-full flex items-center gap-3 p-3 rounded-xl border transition-colors',
+                allWallsSelected
+                  ? 'border-primary bg-primary/5'
+                  : 'border-border hover:border-primary/30'
+              )}
+            >
+              <button
+                onClick={() => {
+                  setSelectedWall({
+                    id: 'all-walls',
+                    user_id: 'system',
+                    name: 'All Walls',
+                    image_url: DEFAULT_WALL.image_url,
+                    image_width: DEFAULT_WALL.image_width,
+                    image_height: DEFAULT_WALL.image_height,
+                    is_public: true,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                  });
+                  setShowWallPicker(false);
+                }}
+                className="flex items-center gap-3 flex-1 min-w-0 text-left"
+              >
+                <div className="size-14 rounded-lg bg-muted/70 flex items-center justify-center shrink-0">
+                  <svg className="w-6 h-6 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5m-16.5 5.25h16.5m-16.5 5.25h16.5" />
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate">All Walls</p>
+                  <p className="text-sm text-muted-foreground">{routes.length} routes</p>
+                </div>
+              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                {allWallsSelected && (
+                  <div className="size-6 rounded-full bg-primary flex items-center justify-center">
+                    <svg className="w-4 h-4 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {walls.map((wall) => {
               const routeCount = routes.filter((r) => r.wall_id === wall.id).length;
               const isSelected = selectedWall?.id === wall.id;
@@ -1285,11 +1404,13 @@ export default function Home() {
                     }}
                     className="flex items-center gap-3 flex-1 min-w-0 text-left"
                   >
-                    <div className="size-14 rounded-lg bg-muted overflow-hidden shrink-0">
-                      <img
+                    <div className="relative size-14 rounded-lg bg-muted overflow-hidden shrink-0">
+                      <Image
                         src={wall.image_url}
                         alt={wall.name}
-                        className="w-full h-full object-cover"
+                        fill
+                        sizes="56px"
+                        className="object-cover"
                       />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -1393,10 +1514,13 @@ export default function Home() {
                   onClick={() => fileInputRef.current?.click()}
                   className="relative aspect-video rounded-xl overflow-hidden cursor-pointer"
                 >
-                  <img
+                  <Image
                     src={wallImage}
                     alt="Wall preview"
-                    className="w-full h-full object-cover"
+                    fill
+                    sizes="100vw"
+                    className="object-cover"
+                    unoptimized
                   />
                   <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
                     <span className="text-white text-sm font-medium">Change photo</span>
@@ -1422,7 +1546,9 @@ export default function Home() {
               onClick={() => {
                 setShowAddWall(false);
                 setWallName('');
+                revokePreviewUrl(wallImage);
                 setWallImage(null);
+                setWallImageFile(null);
               }}
               disabled={isAdding}
             >
@@ -1430,7 +1556,7 @@ export default function Home() {
             </Button>
             <Button
               onClick={handleAddWall}
-              disabled={isAdding || !wallName.trim() || !wallImage}
+              disabled={isAdding || !wallName.trim() || !wallImageFile}
             >
               {isAdding ? 'Adding...' : 'Add Wall'}
             </Button>
@@ -1504,7 +1630,9 @@ export default function Home() {
       {/* Update Wall Photo Dialog */}
       <Dialog open={!!wallToUpdatePhoto} onOpenChange={() => {
         setWallToUpdatePhoto(null);
+        revokePreviewUrl(newWallImage);
         setNewWallImage(null);
+        setNewWallImageFile(null);
       }}>
         <DialogContent>
           <DialogHeader>
@@ -1526,12 +1654,14 @@ export default function Home() {
             {/* Current photo */}
             <div className="space-y-2">
               <Label>Current Photo</Label>
-              <div className="aspect-video rounded-lg overflow-hidden bg-muted">
+              <div className="relative aspect-video rounded-lg overflow-hidden bg-muted">
                 {wallToUpdatePhoto && (
-                  <img
+                  <Image
                     src={wallToUpdatePhoto.image_url}
                     alt="Current wall"
-                    className="w-full h-full object-cover opacity-50"
+                    fill
+                    sizes="100vw"
+                    className="object-cover opacity-50"
                   />
                 )}
               </div>
@@ -1545,10 +1675,13 @@ export default function Home() {
                   onClick={() => updatePhotoInputRef.current?.click()}
                   className="relative aspect-video rounded-lg overflow-hidden cursor-pointer"
                 >
-                  <img
+                  <Image
                     src={newWallImage}
                     alt="New wall preview"
-                    className="w-full h-full object-cover"
+                    fill
+                    sizes="100vw"
+                    className="object-cover"
+                    unoptimized
                   />
                   <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
                     <span className="text-white text-sm font-medium">Change photo</span>
@@ -1577,7 +1710,9 @@ export default function Home() {
               variant="outline"
               onClick={() => {
                 setWallToUpdatePhoto(null);
+                revokePreviewUrl(newWallImage);
                 setNewWallImage(null);
+                setNewWallImageFile(null);
               }}
               disabled={isUpdatingPhoto}
             >
@@ -1585,7 +1720,7 @@ export default function Home() {
             </Button>
             <Button
               onClick={handleUpdateWallPhoto}
-              disabled={isUpdatingPhoto || !newWallImage}
+              disabled={isUpdatingPhoto || !newWallImageFile}
             >
               {isUpdatingPhoto ? 'Updating...' : 'Update Photo'}
             </Button>

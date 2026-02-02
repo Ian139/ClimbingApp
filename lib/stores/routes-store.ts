@@ -50,8 +50,8 @@ export const useRoutesStore = create<RoutesState>()(
           const { data: { user } } = await supabase.auth.getUser();
           const currentUserId = user?.id || 'local-user';
 
-          // Try fetching routes with related data
-          const result = await supabase
+          // Try fetching routes with related data (comments may not exist in some DBs)
+          let result = await supabase
             .from('routes')
             .select(`
               *,
@@ -62,25 +62,39 @@ export const useRoutesStore = create<RoutesState>()(
             .order('created_at', { ascending: false });
 
           if (result.error) {
-            // Supabase not configured - keep existing local data
+            // Fallback: comments table/relation may not exist
+            result = await supabase
+              .from('routes')
+              .select(`
+                *,
+                ascents (*)
+              `)
+              .eq('is_public', true)
+              .order('created_at', { ascending: false });
+          }
+
+          if (result.error) {
+            // Supabase not configured or permissions issue - keep existing local data
             set({ isLoading: false });
             return;
           }
 
           // Fetch likes separately to avoid join issues
-          const { data: allLikes } = await supabase
+          const { data: allLikes, error: likesError } = await supabase
             .from('route_likes')
             .select('route_id, user_id');
 
           // Group likes by route_id
           const likesByRoute: Record<string, string[]> = {};
-          const likes = (allLikes || []) as Array<{ route_id: string; user_id: string }>;
-          likes.forEach((like) => {
-            if (!likesByRoute[like.route_id]) {
-              likesByRoute[like.route_id] = [];
-            }
-            likesByRoute[like.route_id].push(like.user_id);
-          });
+          if (!likesError) {
+            const likes = (allLikes || []) as Array<{ route_id: string; user_id: string }>;
+            likes.forEach((like) => {
+              if (!likesByRoute[like.route_id]) {
+                likesByRoute[like.route_id] = [];
+              }
+              likesByRoute[like.route_id].push(like.user_id);
+            });
+          }
 
           const remoteRoutes = result.data?.map(r => {
             const likedBy = likesByRoute[r.id] || [];

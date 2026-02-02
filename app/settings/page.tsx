@@ -18,8 +18,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
+import { createClient } from '@/lib/supabase/client';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -27,6 +28,13 @@ export default function SettingsPage() {
   const routes = useRoutesStore((state) => state.routes);
   const walls = useWallsStore((state) => state.walls);
   const { user, isAuthenticated, logout, displayName, isModerator, login } = useUserStore();
+  const [storageBytes, setStorageBytes] = useState<number | null>(null);
+  const [storageLoading, setStorageLoading] = useState(false);
+  const [storageError, setStorageError] = useState<string | null>(null);
+  const [storageByWall, setStorageByWall] = useState<Array<{ wallId: string; bytes: number; latestTs: string | null }>>([]);
+  const [storageHistory, setStorageHistory] = useState<Array<{ ts: string; bytes: number }>>([]);
+  const [showCleanup, setShowCleanup] = useState(false);
+  const [isCleaning, setIsCleaning] = useState(false);
   const [showClearData, setShowClearData] = useState(false);
   const [showModLogin, setShowModLogin] = useState(false);
   const [modEmail, setModEmail] = useState('');
@@ -64,6 +72,175 @@ export default function SettingsPage() {
     localStorage.removeItem('climbset-wall');
     localStorage.removeItem('climbset-draft');
     window.location.reload();
+  };
+
+  useEffect(() => {
+    const listFolderSize = async (supabase: ReturnType<typeof createClient>, folder: string) => {
+      let totalBytes = 0;
+      let latestTs: string | null = null;
+      let offset = 0;
+      const limit = 100;
+      let keepGoing = true;
+
+      while (keepGoing) {
+        const { data, error } = await supabase.storage
+          .from('walls')
+          .list(folder, { limit, offset, sortBy: { column: 'name', order: 'asc' } });
+
+        if (error) {
+          throw error;
+        }
+
+        (data || []).forEach((item) => {
+          const size = item.metadata?.size;
+          if (typeof size === 'number') totalBytes += size;
+          const updatedAt = item.updated_at || item.created_at;
+          if (updatedAt) {
+            if (!latestTs || new Date(updatedAt).getTime() > new Date(latestTs).getTime()) {
+              latestTs = updatedAt;
+            }
+          }
+        });
+
+        if (!data || data.length < limit) {
+          keepGoing = false;
+        } else {
+          offset += limit;
+        }
+      }
+
+      return { totalBytes, latestTs };
+    };
+
+    const loadStorageUsage = async () => {
+      setStorageLoading(true);
+      setStorageError(null);
+
+      try {
+        const supabase = createClient();
+        if (storageHistory.length === 0) {
+          const historyKey = 'climbset-storage-history';
+          const rawHistory = localStorage.getItem(historyKey);
+          if (rawHistory) {
+            try {
+              setStorageHistory(JSON.parse(rawHistory));
+            } catch {
+              // ignore parse errors
+            }
+          }
+        }
+        const { data, error } = await supabase.storage
+          .from('walls')
+          .list('', { limit: 100, offset: 0, sortBy: { column: 'name', order: 'asc' } });
+
+        if (error) throw error;
+
+        const folders = (data || [])
+          .filter((item) => !item.metadata)
+          .map((item) => item.name);
+
+        const breakdown: Array<{ wallId: string; bytes: number; latestTs: string | null }> = [];
+        let totalBytes = 0;
+
+        for (const folder of folders) {
+          const { totalBytes: bytes, latestTs } = await listFolderSize(supabase, folder);
+          breakdown.push({ wallId: folder, bytes, latestTs });
+          totalBytes += bytes;
+        }
+
+        breakdown.sort((a, b) => b.bytes - a.bytes);
+        setStorageByWall(breakdown);
+        setStorageBytes(totalBytes);
+
+        const historyKey = 'climbset-storage-history';
+        const now = new Date();
+        const nowIso = now.toISOString();
+        const rawHistory = localStorage.getItem(historyKey);
+        const history = rawHistory ? (JSON.parse(rawHistory) as Array<{ ts: string; bytes: number }>) : [];
+        const last = history[history.length - 1];
+        const lastTs = last ? new Date(last.ts).getTime() : 0;
+        const twelveHours = 12 * 60 * 60 * 1000;
+        const nextHistory = (now.getTime() - lastTs > twelveHours)
+          ? [...history, { ts: nowIso, bytes: totalBytes }].slice(-30)
+          : history;
+        localStorage.setItem(historyKey, JSON.stringify(nextHistory));
+        setStorageHistory(nextHistory);
+      } catch (error) {
+        setStorageError(error instanceof Error ? error.message : 'Unable to load storage usage');
+      } finally {
+        setStorageLoading(false);
+      }
+    };
+
+    loadStorageUsage();
+  }, [storageHistory.length]);
+
+  const formatBytes = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    const kb = bytes / 1024;
+    if (kb < 1024) return `${kb.toFixed(1)} KB`;
+    const mb = kb / 1024;
+    if (mb < 1024) return `${mb.toFixed(1)} MB`;
+    const gb = mb / 1024;
+    return `${gb.toFixed(2)} GB`;
+  };
+
+  const getStoragePathFromUrl = (url: string) => {
+    const marker = '/storage/v1/object/public/walls/';
+    const index = url.indexOf(marker);
+    if (index === -1) return null;
+    return url.substring(index + marker.length);
+  };
+
+  const runStorageCleanup = async () => {
+    setIsCleaning(true);
+    try {
+      const supabase = createClient();
+      const referenced = new Set<string>();
+      const now = Date.now();
+      const sevenDays = 7 * 24 * 60 * 60 * 1000;
+
+      walls.forEach((wall) => {
+        const path = getStoragePathFromUrl(wall.image_url);
+        if (path) referenced.add(path);
+      });
+
+      const { data: roots, error: rootError } = await supabase.storage
+        .from('walls')
+        .list('', { limit: 100, offset: 0, sortBy: { column: 'name', order: 'asc' } });
+
+      if (rootError) throw rootError;
+
+      const folders = (roots || []).filter((item) => !item.metadata).map((item) => item.name);
+      const deletions: string[] = [];
+
+      for (const folder of folders) {
+        const { data, error } = await supabase.storage
+          .from('walls')
+          .list(folder, { limit: 100, offset: 0, sortBy: { column: 'name', order: 'asc' } });
+        if (error) throw error;
+        (data || []).forEach((item) => {
+          const updatedAt = item.updated_at || item.created_at;
+          const ageOk = updatedAt ? (now - new Date(updatedAt).getTime() > sevenDays) : false;
+          const path = `${folder}/${item.name}`;
+          if (!referenced.has(path) && ageOk) {
+            deletions.push(path);
+          }
+        });
+      }
+
+      if (deletions.length > 0) {
+        const { error } = await supabase.storage.from('walls').remove(deletions);
+        if (error) throw error;
+      }
+
+      toast.success(deletions.length > 0 ? `Deleted ${deletions.length} unused images` : 'No unused images found');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to clean up storage');
+    } finally {
+      setIsCleaning(false);
+      setShowCleanup(false);
+    }
   };
 
   const handleExportData = () => {
@@ -195,6 +372,58 @@ export default function SettingsPage() {
             <p className="text-sm text-muted-foreground">
               <span className="font-medium text-foreground">{walls.length}</span> walls saved
             </p>
+            <div className="text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">Storage usage:</span>{' '}
+              {storageLoading
+                ? 'Loading...'
+                : storageError
+                  ? 'Unavailable'
+                  : storageBytes !== null
+                    ? formatBytes(storageBytes)
+                    : '—'}
+            </div>
+            {!storageLoading && !storageError && storageByWall.length > 0 && (
+              <div className="rounded-xl border border-border/50 p-3 space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Storage By Wall (size • last upload)</p>
+                {storageByWall.map((entry) => {
+                  const wallName = walls.find((w) => w.id === entry.wallId)?.name || entry.wallId;
+                  return (
+                    <div key={entry.wallId} className="flex items-center justify-between text-sm">
+                      <span className="text-foreground truncate">{wallName}</span>
+                      <span className="text-muted-foreground">
+                        {formatBytes(entry.bytes)}
+                        {entry.latestTs && (
+                          <span className="text-xs text-muted-foreground/70 ml-2">
+                            {new Date(entry.latestTs).toLocaleDateString()}
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {storageHistory.length > 1 && (
+              <div className="rounded-xl border border-border/50 p-3 space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Storage Trend</p>
+                {storageHistory.slice(-7).map((entry) => (
+                  <div key={entry.ts} className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">
+                      {new Date(entry.ts).toLocaleDateString()}
+                    </span>
+                    <span className="text-foreground">{formatBytes(entry.bytes)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {isModerator && (
+              <button
+                onClick={() => setShowCleanup(true)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-destructive/10 text-sm font-medium text-destructive hover:bg-destructive/20 transition-colors"
+              >
+                Clean Up Storage
+              </button>
+            )}
             <button
               onClick={handleExportData}
               className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-muted/30 text-sm font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
@@ -322,6 +551,34 @@ export default function SettingsPage() {
               disabled={modLoading || !modEmail || !modPassword}
             >
               {modLoading ? 'Signing in...' : 'Sign In'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Storage Cleanup Dialog */}
+      <Dialog open={showCleanup} onOpenChange={setShowCleanup}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Clean Up Storage</DialogTitle>
+            <DialogDescription>
+              This will delete wall images that are no longer referenced by any wall. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowCleanup(false)}
+              disabled={isCleaning}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={runStorageCleanup}
+              disabled={isCleaning}
+            >
+              {isCleaning ? 'Cleaning...' : 'Delete Unused Images'}
             </Button>
           </DialogFooter>
         </DialogContent>

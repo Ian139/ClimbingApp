@@ -63,7 +63,7 @@ function EditorContent() {
   const { selectedWall } = useWallStore();
   const { routes, addRoute, updateRoute } = useRoutesStore();
   const { userId, displayName, isModerator } = useUserStore();
-  const wall = selectedWall || DEFAULT_WALL;
+  const wall = selectedWall?.id === 'all-walls' ? DEFAULT_WALL : (selectedWall || DEFAULT_WALL);
 
   // Edit mode state
   const [editingRoute, setEditingRoute] = useState<Route | null>(null);

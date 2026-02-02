@@ -87,23 +87,21 @@ export const useWallsStore = create<WallsState>()(
           const supabase = createClient();
           const { data: { user } } = await supabase.auth.getUser();
 
-          if (user && wall.user_id !== 'local-user') {
-            const { error } = await supabase
-              .from('walls')
-              .insert({
-                id: wall.id,
-                user_id: user.id,
-                name: wall.name,
-                description: wall.description,
-                image_url: wall.image_url,
-                image_width: wall.image_width,
-                image_height: wall.image_height,
-                is_public: true,
-              });
+          const { error } = await supabase
+            .from('walls')
+            .insert({
+              id: wall.id,
+              user_id: user?.id || null,
+              name: wall.name,
+              description: wall.description,
+              image_url: wall.image_url,
+              image_width: wall.image_width,
+              image_height: wall.image_height,
+              is_public: true,
+            });
 
-            if (error) {
-              console.error('Error saving wall to Supabase:', error);
-            }
+          if (error) {
+            console.error('Error saving wall to Supabase:', error);
           }
         } catch (error) {
           console.error('Error saving wall:', error);
@@ -147,6 +145,15 @@ export const useWallsStore = create<WallsState>()(
               .from('walls')
               .delete()
               .eq('id', id);
+
+            // Attempt to delete wall images from storage
+            const { data, error } = await supabase.storage
+              .from('walls')
+              .list(id, { limit: 100, offset: 0, sortBy: { column: 'name', order: 'asc' } });
+            if (!error && data && data.length > 0) {
+              const paths = data.map((item) => `${id}/${item.name}`);
+              await supabase.storage.from('walls').remove(paths);
+            }
           }
         } catch (error) {
           console.error('Error deleting wall:', error);
