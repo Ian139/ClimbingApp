@@ -554,7 +554,16 @@ export default function Home() {
         {/* Desktop Header */}
         <div className="hidden md:flex items-center justify-between border-b border-border/50 pb-4">
           <div className="flex items-center gap-8">
-            <h1 className="text-xl font-bold tracking-tight">climbset</h1>
+            <div className="flex items-center gap-2">
+              <Image
+                src="/icon.png"
+                alt="ClimbSet icon"
+                width={24}
+                height={24}
+                className="rounded-md"
+              />
+              <h1 className="text-xl font-bold tracking-tight">climbset</h1>
+            </div>
 
             {/* Wall Selector - Desktop inline dropdown */}
             <button
@@ -598,7 +607,16 @@ export default function Home() {
         {/* Mobile Header */}
         <div className="md:hidden flex items-center justify-between border-b border-border/50 pb-4">
           <div className="flex items-center gap-4">
-            <h1 className="text-xl font-bold tracking-tight">climbset</h1>
+            <div className="flex items-center gap-2">
+              <Image
+                src="/icon.png"
+                alt="ClimbSet icon"
+                width={22}
+                height={22}
+                className="rounded-md"
+              />
+              <h1 className="text-xl font-bold tracking-tight">climbset</h1>
+            </div>
 
             {/* Wall Selector - Mobile inline */}
             <button
