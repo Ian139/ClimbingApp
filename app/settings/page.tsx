@@ -35,6 +35,8 @@ export default function SettingsPage() {
   const [storageHistory, setStorageHistory] = useState<Array<{ ts: string; bytes: number }>>([]);
   const [showCleanup, setShowCleanup] = useState(false);
   const [isCleaning, setIsCleaning] = useState(false);
+  const [cleanupPreview, setCleanupPreview] = useState<string[]>([]);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [showClearData, setShowClearData] = useState(false);
   const [showModLogin, setShowModLogin] = useState(false);
   const [modEmail, setModEmail] = useState('');
@@ -192,42 +194,62 @@ export default function SettingsPage() {
     return url.substring(index + marker.length);
   };
 
+  const getCleanupCandidates = async () => {
+    const supabase = createClient();
+    const referenced = new Set<string>();
+    const now = Date.now();
+    const sevenDays = 7 * 24 * 60 * 60 * 1000;
+
+    walls.forEach((wall) => {
+      const path = getStoragePathFromUrl(wall.image_url);
+      if (path) referenced.add(path);
+    });
+
+    const { data: roots, error: rootError } = await supabase.storage
+      .from('walls')
+      .list('', { limit: 100, offset: 0, sortBy: { column: 'name', order: 'asc' } });
+
+    if (rootError) throw rootError;
+
+    const folders = (roots || []).filter((item) => !item.metadata).map((item) => item.name);
+    const deletions: string[] = [];
+
+    for (const folder of folders) {
+      const { data, error } = await supabase.storage
+        .from('walls')
+        .list(folder, { limit: 100, offset: 0, sortBy: { column: 'name', order: 'asc' } });
+      if (error) throw error;
+      (data || []).forEach((item) => {
+        const updatedAt = item.updated_at || item.created_at;
+        const ageOk = updatedAt ? (now - new Date(updatedAt).getTime() > sevenDays) : false;
+        const path = `${folder}/${item.name}`;
+        if (!referenced.has(path) && ageOk) {
+          deletions.push(path);
+        }
+      });
+    }
+
+    return deletions;
+  };
+
+  const loadCleanupPreview = async () => {
+    setIsPreviewLoading(true);
+    try {
+      const deletions = await getCleanupCandidates();
+      setCleanupPreview(deletions);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to load cleanup preview');
+      setCleanupPreview([]);
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  };
+
   const runStorageCleanup = async () => {
     setIsCleaning(true);
     try {
       const supabase = createClient();
-      const referenced = new Set<string>();
-      const now = Date.now();
-      const sevenDays = 7 * 24 * 60 * 60 * 1000;
-
-      walls.forEach((wall) => {
-        const path = getStoragePathFromUrl(wall.image_url);
-        if (path) referenced.add(path);
-      });
-
-      const { data: roots, error: rootError } = await supabase.storage
-        .from('walls')
-        .list('', { limit: 100, offset: 0, sortBy: { column: 'name', order: 'asc' } });
-
-      if (rootError) throw rootError;
-
-      const folders = (roots || []).filter((item) => !item.metadata).map((item) => item.name);
-      const deletions: string[] = [];
-
-      for (const folder of folders) {
-        const { data, error } = await supabase.storage
-          .from('walls')
-          .list(folder, { limit: 100, offset: 0, sortBy: { column: 'name', order: 'asc' } });
-        if (error) throw error;
-        (data || []).forEach((item) => {
-          const updatedAt = item.updated_at || item.created_at;
-          const ageOk = updatedAt ? (now - new Date(updatedAt).getTime() > sevenDays) : false;
-          const path = `${folder}/${item.name}`;
-          if (!referenced.has(path) && ageOk) {
-            deletions.push(path);
-          }
-        });
-      }
+      const deletions = cleanupPreview.length > 0 ? cleanupPreview : await getCleanupCandidates();
 
       if (deletions.length > 0) {
         const { error } = await supabase.storage.from('walls').remove(deletions);
@@ -235,6 +257,7 @@ export default function SettingsPage() {
       }
 
       toast.success(deletions.length > 0 ? `Deleted ${deletions.length} unused images` : 'No unused images found');
+      setCleanupPreview([]);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to clean up storage');
     } finally {
@@ -418,7 +441,10 @@ export default function SettingsPage() {
             )}
             {isModerator && (
               <button
-                onClick={() => setShowCleanup(true)}
+                onClick={() => {
+                  setShowCleanup(true);
+                  loadCleanupPreview();
+                }}
                 className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-destructive/10 text-sm font-medium text-destructive hover:bg-destructive/20 transition-colors"
               >
                 Clean Up Storage
@@ -565,18 +591,32 @@ export default function SettingsPage() {
               This will delete wall images that are no longer referenced by any wall. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Preview</p>
+            <div className="max-h-48 overflow-y-auto rounded-lg border border-border/50 p-2 text-sm text-muted-foreground">
+              {isPreviewLoading ? (
+                <p>Loading preview...</p>
+              ) : cleanupPreview.length > 0 ? (
+                cleanupPreview.map((path) => (
+                  <div key={path} className="truncate">{path}</div>
+                ))
+              ) : (
+                <p>No unused images older than 7 days.</p>
+              )}
+            </div>
+          </div>
           <DialogFooter>
             <Button
               variant="outline"
               onClick={() => setShowCleanup(false)}
-              disabled={isCleaning}
+              disabled={isCleaning || isPreviewLoading}
             >
               Cancel
             </Button>
             <Button
               variant="destructive"
               onClick={runStorageCleanup}
-              disabled={isCleaning}
+              disabled={isCleaning || isPreviewLoading || cleanupPreview.length === 0}
             >
               {isCleaning ? 'Cleaning...' : 'Delete Unused Images'}
             </Button>
