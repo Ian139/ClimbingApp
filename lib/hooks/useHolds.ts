@@ -15,30 +15,27 @@ import {
 const STORAGE_KEY = 'climbset-draft';
 
 export function useHolds(initialHolds: Hold[] = []) {
-	const [holds, setHolds] = useState<Hold[]>(initialHolds);
-	const [selectedType, setSelectedType] = useState<HoldType>('hand');
-
-	// Load from localStorage after hydration to avoid SSR mismatch
-	useEffect(() => {
+	const getStoredHolds = () => {
+		if (typeof window === 'undefined') return initialHolds;
 		const saved = localStorage.getItem(STORAGE_KEY);
-		if (saved) {
-			try {
-				const parsed = JSON.parse(saved);
-				if (Array.isArray(parsed)) {
-					setHolds(parsed);
-				}
-			} catch {
-				// Ignore parse errors
-			}
+		if (!saved) return initialHolds;
+		try {
+			const parsed = JSON.parse(saved);
+			return Array.isArray(parsed) ? parsed : initialHolds;
+		} catch {
+			return initialHolds;
 		}
-	}, []);
+	};
+
+	const [holds, setHolds] = useState<Hold[]>(getStoredHolds);
+	const [selectedType, setSelectedType] = useState<HoldType>('hand');
 	const [selectedSize, setSelectedSize] = useState<HoldSize>('medium');
 	const [showSequence, setShowSequence] = useState(false);
 
 	// Use refs for history to avoid stale closure issues
 	const historyRef = useRef<Hold[][]>([]);
 	const historyIndexRef = useRef(-1);
-	const [, forceUpdate] = useState(0);
+	const [historyMeta, setHistoryMeta] = useState({ index: -1, length: 0 });
 
 	// Save to localStorage whenever holds change
 	useEffect(() => {
@@ -53,7 +50,7 @@ export function useHolds(initialHolds: Hold[] = []) {
 		historyRef.current = historyRef.current.slice(0, historyIndexRef.current + 1);
 		historyRef.current.push(state);
 		historyIndexRef.current = historyRef.current.length - 1;
-		forceUpdate(n => n + 1);
+		setHistoryMeta({ index: historyIndexRef.current, length: historyRef.current.length });
 	}, []);
 
 	// Add hold at coordinates
@@ -133,7 +130,7 @@ export function useHolds(initialHolds: Hold[] = []) {
 		setHolds(newHolds);
 		historyRef.current = [];
 		historyIndexRef.current = -1;
-		forceUpdate(n => n + 1);
+		setHistoryMeta({ index: -1, length: 0 });
 	}, []);
 
 	// Clear draft from localStorage
@@ -144,7 +141,7 @@ export function useHolds(initialHolds: Hold[] = []) {
 		setHolds([]);
 		historyRef.current = [];
 		historyIndexRef.current = -1;
-		forceUpdate(n => n + 1);
+		setHistoryMeta({ index: -1, length: 0 });
 	}, []);
 
 	// Undo
@@ -156,7 +153,7 @@ export function useHolds(initialHolds: Hold[] = []) {
 			const prevState = history[historyIndex];
 			setHolds(prevState || []);
 			historyIndexRef.current = historyIndex - 1;
-			forceUpdate(n => n + 1);
+			setHistoryMeta({ index: historyIndexRef.current, length: history.length });
 		}
 	}, []);
 
@@ -169,7 +166,7 @@ export function useHolds(initialHolds: Hold[] = []) {
 			const nextState = history[historyIndex + 1];
 			historyIndexRef.current = historyIndex + 1;
 			setHolds(nextState || []);
-			forceUpdate(n => n + 1);
+			setHistoryMeta({ index: historyIndexRef.current, length: history.length });
 		}
 	}, []);
 
@@ -179,9 +176,9 @@ export function useHolds(initialHolds: Hold[] = []) {
 		setHolds((prev) => toggleSequencing(prev, enable));
 	}, []);
 
-	// Compute canUndo/canRedo from refs
-	const canUndo = historyIndexRef.current >= 0 && historyRef.current.length > 0;
-	const canRedo = historyIndexRef.current < historyRef.current.length - 1;
+	// Compute canUndo/canRedo from state
+	const canUndo = historyMeta.index >= 0 && historyMeta.length > 0;
+	const canRedo = historyMeta.index < historyMeta.length - 1;
 
 	return {
 		holds: holds || [], // Always return an array

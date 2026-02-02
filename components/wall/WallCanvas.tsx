@@ -28,6 +28,7 @@ export function WallCanvas({
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
   const isLongPressRef = useRef(false);
+  const ignoreNextClickRef = useRef(false);
 
   // Update dimensions on mount and resize
   useEffect(() => {
@@ -45,6 +46,11 @@ export function WallCanvas({
 
   // Handle mouse click to add hold
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (ignoreNextClickRef.current) {
+      ignoreNextClickRef.current = false;
+      return;
+    }
+
     if (!containerRef.current) return;
 
     const rect = containerRef.current.getBoundingClientRect();
@@ -115,7 +121,7 @@ export function WallCanvas({
   };
 
   // Handle touch end
-  const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+  const handleTouchEnd = () => {
     if (!containerRef.current || !touchStartPosRef.current) return;
 
     // Clear long press timer
@@ -137,6 +143,12 @@ export function WallCanvas({
       // Quick tap = add hold or cycle type if tapping existing hold
       onTap(percentCoords.x, percentCoords.y);
     }
+
+    // Prevent the synthetic click that follows touchend
+    ignoreNextClickRef.current = true;
+    setTimeout(() => {
+      ignoreNextClickRef.current = false;
+    }, 0);
 
     touchStartPosRef.current = null;
     isLongPressRef.current = false;

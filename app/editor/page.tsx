@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState, useRef } from 'react';
+import { Suspense, useEffect, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { WallCanvas } from '@/components/wall/WallCanvas';
@@ -70,9 +70,9 @@ function EditorContent() {
   const isEditMode = !!editRouteId;
 
   // Check if user can edit a route
-  const canEditRoute = (route: Route) => {
+  const canEditRoute = useCallback((route: Route) => {
     return isModerator || route.user_id === userId || route.user_id === 'local-user';
-  };
+  }, [isModerator, userId]);
 
   // Load route data when in edit mode
   useEffect(() => {
@@ -95,7 +95,7 @@ function EditorContent() {
         router.push('/');
       }
     }
-  }, [editRouteId, routes, router, setAllHolds, userId, isModerator]);
+  }, [editRouteId, routes, router, setAllHolds, canEditRoute]);
 
   // Save state
   const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -177,7 +177,11 @@ function EditorContent() {
 
       if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
         e.preventDefault();
-        e.shiftKey ? redo() : undo();
+        if (e.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
       }
     };
 
@@ -186,7 +190,6 @@ function EditorContent() {
   }, [setSelectedType, undo, redo]);
 
   const holdTypes: HoldType[] = ['start', 'hand', 'foot', 'finish'];
-  const holdSizes: HoldSize[] = ['small', 'medium', 'large'];
 
   // Size as a numeric value for slider (0-100 maps to small/medium/large)
   const sizeToValue = (size: HoldSize): number => {
@@ -253,6 +256,25 @@ function EditorContent() {
     const currentIndex = HOLD_TYPE_CYCLE.indexOf(selectedType);
     const nextIndex = (currentIndex + 1) % HOLD_TYPE_CYCLE.length;
     setSelectedType(HOLD_TYPE_CYCLE[nextIndex]);
+  };
+
+  const handleSaveDialogChange = (open: boolean) => {
+    setShowSaveDialog(open);
+
+    if (open) {
+      if (isEditMode && editingRoute) {
+        setRouteName(editingRoute.name);
+        setRouteGrade(editingRoute.grade_v || '');
+      }
+      return;
+    }
+
+    if (!isEditMode) {
+      setRouteName('');
+      setRouteGrade('');
+    }
+
+    setSaveError(null);
   };
 
   return (
@@ -506,7 +528,7 @@ function EditorContent() {
       </div>
 
       {/* Save Dialog */}
-      <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
+      <Dialog open={showSaveDialog} onOpenChange={handleSaveDialogChange}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{isEditMode ? 'Update Route' : 'Save Route'}</DialogTitle>
@@ -556,12 +578,7 @@ function EditorContent() {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => {
-                setShowSaveDialog(false);
-                setRouteName('');
-                setRouteGrade('');
-                setSaveError(null);
-              }}
+              onClick={() => handleSaveDialogChange(false)}
               disabled={isSaving}
             >
               Cancel

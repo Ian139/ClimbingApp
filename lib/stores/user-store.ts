@@ -152,7 +152,7 @@ export const useUserStore = create<UserState>()(
           }
 
           return { success: false, error: 'Signup failed' };
-        } catch (error) {
+        } catch {
           return { success: false, error: 'An unexpected error occurred' };
         }
       },
@@ -183,7 +183,7 @@ export const useUserStore = create<UserState>()(
           }
 
           return { success: false, error: 'Login failed' };
-        } catch (error) {
+        } catch {
           return { success: false, error: 'An unexpected error occurred' };
         }
       },

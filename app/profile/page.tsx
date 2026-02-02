@@ -1,11 +1,18 @@
 'use client';
 
-import { useMemo, useEffect, useState } from 'react';
+import { useMemo, useEffect, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { useUserStore } from '@/lib/stores/user-store';
 import { useRoutesStore } from '@/lib/stores/routes-store';
 import { V_GRADES } from '@/lib/types';
 import { cn } from '@/lib/utils';
+
+const useIsClient = () =>
+  useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
 
 // Grade to numeric value for sorting
 const gradeToNumber = (grade?: string): number => {
@@ -45,10 +52,9 @@ const calculateDisplayGrade = (setterGrade?: string, ascents?: { grade_v?: strin
 export default function ProfilePage() {
   const { user, displayName, userId, isAuthenticated } = useUserStore();
   const { routes, fetchRoutes } = useRoutesStore();
-  const [mounted, setMounted] = useState(false);
+  const isClient = useIsClient();
 
   useEffect(() => {
-    setMounted(true);
     fetchRoutes();
   }, [fetchRoutes]);
 
@@ -121,7 +127,7 @@ export default function ProfilePage() {
     };
   }, [routes, userId]);
 
-  if (!mounted) return null;
+  if (!isClient) return null;
 
   return (
     <div className="min-h-dvh bg-background pb-28">
