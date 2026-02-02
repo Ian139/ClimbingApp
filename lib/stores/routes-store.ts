@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { createClient } from '@/lib/supabase/client';
 import type { Route, Ascent, Comment } from '@/lib/types';
+import { nanoid } from 'nanoid';
 
 interface RoutesState {
   routes: Route[];
@@ -172,9 +173,10 @@ export const useRoutesStore = create<RoutesState>()(
       },
 
       addRoute: async (route) => {
+        const ensuredRoute = route.share_token ? route : { ...route, share_token: nanoid(10) };
         // Add to local state immediately
         set((state) => ({
-          routes: [{ ...route, is_public: true }, ...state.routes]
+          routes: [{ ...ensuredRoute, is_public: true }, ...state.routes]
         }));
 
         // Always try to save to Supabase (works for anonymous users too)
@@ -182,7 +184,7 @@ export const useRoutesStore = create<RoutesState>()(
           const supabase = createClient();
           const { data: { user } } = await supabase.auth.getUser();
 
-          const routeData = { ...route };
+          const routeData = { ...ensuredRoute };
           delete routeData.ascents;
           delete routeData.wall;
           delete routeData.user;

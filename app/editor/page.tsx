@@ -6,6 +6,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { WallCanvas } from '@/components/wall/WallCanvas';
 import { useHolds } from '@/lib/hooks/useHolds';
 import { HoldType, HoldSize, Route, V_GRADES, HOLD_COLORS, HOLD_TYPE_CYCLE, HOLD_BORDER_WIDTH } from '@/lib/types';
+import { nanoid } from 'nanoid';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -145,6 +146,7 @@ function EditorContent() {
           holds,
           is_public: false,
           view_count: 0,
+          share_token: nanoid(10),
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };

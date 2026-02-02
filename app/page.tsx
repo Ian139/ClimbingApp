@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { motion, AnimatePresence } from 'motion/react';
+import { nanoid } from 'nanoid';
 import { createClient } from '@/lib/supabase/client';
 import { useWallStore } from '@/lib/stores/wall-store';
 import { useWallsStore, DEFAULT_WALL } from '@/lib/stores/walls-store';
@@ -138,7 +139,7 @@ export default function Home() {
   const { theme, setTheme } = useTheme();
   const { selectedWall, setSelectedWall } = useWallStore();
   const { walls, addWall, updateWall, deleteWall, fetchWalls } = useWallsStore();
-  const { routes, deleteRoute, addAscent, hasUserClimbed, fetchRoutes, isLoading: routesLoading, incrementViewCount, toggleLike, isLikedByUser, getLikeCount } = useRoutesStore();
+  const { routes, deleteRoute, addAscent, hasUserClimbed, fetchRoutes, isLoading: routesLoading, incrementViewCount, toggleLike, isLikedByUser, getLikeCount, updateRoute } = useRoutesStore();
   const { userId, displayName, isModerator } = useUserStore();
   const startTransition = useTransitionStore((state) => state.startTransition);
   const isClient = useIsClient();
@@ -178,6 +179,34 @@ export default function Home() {
   const handleToggleLike = (route: Route, e: React.MouseEvent) => {
     e.stopPropagation();
     toggleLike(route.id, userId || 'local-user');
+  };
+
+  const getShareUrl = (token: string) => {
+    if (typeof window === 'undefined') return token;
+    const base = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+    return `${base.replace(/\/$/, '')}/share/${token}`;
+  };
+
+  const handleShareRoute = async (route: Route, e: React.MouseEvent) => {
+    e.stopPropagation();
+    let token = route.share_token;
+
+    if (!token) {
+      if (!userId) {
+        toast.error('Log in to enable sharing for existing routes');
+        return;
+      }
+      token = nanoid(10);
+      await updateRoute(route.id, { share_token: token });
+    }
+
+    const url = getShareUrl(token);
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success(`Share link copied: ${url}`);
+    } catch {
+      toast.error('Unable to copy link');
+    }
   };
 
   // Log climb state
@@ -393,17 +422,17 @@ export default function Home() {
       const wallId = crypto.randomUUID();
       const imageUrl = await uploadWallImage(wallImageFile, wallId);
 
-      const newWall: Wall = {
-        id: wallId,
-        user_id: userId || 'local-user',
-        name: wallName.trim(),
-        image_url: imageUrl,
-        image_width: 1920,
-        image_height: 1080,
-        is_public: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
+        const newWall: Wall = {
+          id: wallId,
+          user_id: userId || 'local-user',
+          name: wallName.trim(),
+          image_url: imageUrl,
+          image_width: 1920,
+          image_height: 1080,
+          is_public: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
 
       addWall(newWall);
       setSelectedWall(newWall);
@@ -949,6 +978,15 @@ export default function Home() {
                               </svg>
                             </button>
                             <button
+                              onClick={(e) => handleShareRoute(route, e)}
+                              aria-label="Share route"
+                              className="size-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary transition-colors"
+                            >
+                              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 12a2.25 2.25 0 114.5 0 2.25 2.25 0 01-4.5 0zm9-6.75a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm0 13.5a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-4.243-11.121l3.486 1.743m-3.486 5.006l3.486-1.743" />
+                              </svg>
+                            </button>
+                            <button
                               onClick={(e) => toggleCardFlip(route.id, e)}
                               aria-label="View info"
                               className={cn(
@@ -1059,6 +1097,15 @@ export default function Home() {
                                       <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
                                     Log
+                                  </button>
+                                  <button
+                                    onClick={(e) => handleShareRoute(route, e)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-sm font-medium"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 12a2.25 2.25 0 114.5 0 2.25 2.25 0 01-4.5 0zm9-6.75a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm0 13.5a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-4.243-11.121l3.486 1.743m-3.486 5.006l3.486-1.743" />
+                                    </svg>
+                                    Share
                                   </button>
                                   {canEditRoute(route) && (
                                     <button
@@ -1197,6 +1244,15 @@ export default function Home() {
                               >
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={(e) => handleShareRoute(route, e)}
+                                aria-label="Share route"
+                                className="size-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary transition-colors"
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 12a2.25 2.25 0 114.5 0 2.25 2.25 0 01-4.5 0zm9-6.75a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm0 13.5a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-4.243-11.121l3.486 1.743m-3.486 5.006l3.486-1.743" />
                                 </svg>
                               </button>
                               <button

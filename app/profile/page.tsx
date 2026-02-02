@@ -64,6 +64,19 @@ export default function ProfilePage() {
 
     // Routes created by user
     const userRoutes = routes.filter(r => r.user_id === currentUserId);
+    const userRouteStats = userRoutes.map((r) => {
+      const ascents = r.ascents || [];
+      const ratings = ascents.filter(a => a.rating).map(a => a.rating as number);
+      const avgRating = ratings.length > 0
+        ? ratings.reduce((sum, v) => sum + v, 0) / ratings.length
+        : r.rating || 0;
+      return {
+        route: r,
+        likeCount: r.liked_by?.length || r.like_count || 0,
+        viewCount: r.view_count || 0,
+        avgRating,
+      };
+    });
 
     // All ascents by user across all routes
     const userAscents = routes.flatMap(r =>
@@ -115,6 +128,17 @@ export default function ProfilePage() {
       .filter(Boolean)
       .sort((a, b) => gradeToNumber(b) - gradeToNumber(a))[0];
 
+    const totalLikes = userRouteStats.reduce((sum, r) => sum + r.likeCount, 0);
+    const avgRouteRating = userRouteStats.length > 0
+      ? userRouteStats.reduce((sum, r) => sum + r.avgRating, 0) / userRouteStats.length
+      : 0;
+    const topLikedRoute = userRouteStats.reduce((top, current) =>
+      !top || current.likeCount > top.likeCount ? current : top
+    , null as null | { route: typeof userRoutes[number]; likeCount: number; viewCount: number; avgRating: number })?.route;
+    const topViewedRoute = userRouteStats.reduce((top, current) =>
+      !top || current.viewCount > top.viewCount ? current : top
+    , null as null | { route: typeof userRoutes[number]; likeCount: number; viewCount: number; avgRating: number })?.route;
+
     return {
       totalSends: userAscents.length,
       flashCount: flashedAscents.length,
@@ -124,6 +148,10 @@ export default function ProfilePage() {
       maxCount,
       recentActivity,
       highestGrade,
+      totalLikes,
+      avgRouteRating,
+      topLikedRoute,
+      topViewedRoute,
     };
   }, [routes, userId]);
 
@@ -209,6 +237,37 @@ export default function ProfilePage() {
           <section>
             <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Highest Grade</h3>
             <p className="text-3xl font-bold text-primary">{stats.highestGrade}</p>
+          </section>
+        )}
+
+        {/* Setter Analytics */}
+        {stats.routesCreated > 0 && (
+          <section>
+            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-4">Setter Analytics</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-muted/30 rounded-xl p-4">
+                <p className="text-xs text-muted-foreground mb-1">Total Likes</p>
+                <p className="text-xl font-bold text-foreground">{stats.totalLikes}</p>
+              </div>
+              <div className="bg-muted/30 rounded-xl p-4">
+                <p className="text-xs text-muted-foreground mb-1">Avg Rating</p>
+                <p className="text-xl font-bold text-foreground">
+                  {stats.avgRouteRating > 0 ? stats.avgRouteRating.toFixed(1) : '—'}
+                </p>
+              </div>
+              <div className="bg-muted/30 rounded-xl p-4">
+                <p className="text-xs text-muted-foreground mb-1">Most Liked</p>
+                <p className="text-sm font-medium text-foreground truncate">
+                  {stats.topLikedRoute?.name || '—'}
+                </p>
+              </div>
+              <div className="bg-muted/30 rounded-xl p-4">
+                <p className="text-xs text-muted-foreground mb-1">Most Viewed</p>
+                <p className="text-sm font-medium text-foreground truncate">
+                  {stats.topViewedRoute?.name || '—'}
+                </p>
+              </div>
+            </div>
           </section>
         )}
 
