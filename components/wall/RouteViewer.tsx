@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import { Hold, HOLD_COLORS, HOLD_BORDER_WIDTH, Comment } from '@/lib/types';
 import { CommentsSection } from '@/components/route/CommentsSection';
@@ -17,20 +17,47 @@ interface RouteViewerProps {
 
 export function RouteViewer({ wallImageUrl, holds, routeName, grade, setterName, routeId, comments = [] }: RouteViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const imageRef = useRef<HTMLImageElement | null>(null);
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0, left: 0, top: 0 });
+
+  const updateDimensions = useCallback(() => {
+    if (!containerRef.current || !imageRef.current) return;
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const imgRect = imageRef.current.getBoundingClientRect();
+    setDimensions({
+      width: imgRect.width,
+      height: imgRect.height,
+      left: imgRect.left - containerRect.left,
+      top: imgRect.top - containerRect.top,
+    });
+  }, []);
 
   useEffect(() => {
-    const updateDimensions = () => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        setDimensions({ width: rect.width, height: rect.height });
-      }
+    let rafId: number | null = null;
+    const onScroll = () => {
+      if (rafId !== null) return;
+      rafId = window.requestAnimationFrame(() => {
+        rafId = null;
+        updateDimensions();
+      });
     };
 
     updateDimensions();
+    const resizeObserver = new ResizeObserver(() => updateDimensions());
+    if (containerRef.current) resizeObserver.observe(containerRef.current);
+    if (imageRef.current) resizeObserver.observe(imageRef.current);
+
     window.addEventListener('resize', updateDimensions);
-    return () => window.removeEventListener('resize', updateDimensions);
-  }, []);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', updateDimensions);
+      window.removeEventListener('scroll', onScroll);
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
+    };
+  }, [updateDimensions]);
 
   // Get hold type label
   const getHoldLabel = (type: Hold['type']) => {
@@ -59,10 +86,10 @@ export function RouteViewer({ wallImageUrl, holds, routeName, grade, setterName,
             style={{ maxWidth: '100%', maxHeight: '100%', width: 'auto', height: 'auto' }}
             priority
             draggable={false}
-            onLoad={(e) => {
-              const img = e.target as HTMLImageElement;
-              setDimensions({ width: img.clientWidth, height: img.clientHeight });
+            ref={(el) => {
+              imageRef.current = el;
             }}
+            onLoad={updateDimensions}
           />
 
           {/* Render holds */}
@@ -72,9 +99,8 @@ export function RouteViewer({ wallImageUrl, holds, routeName, grade, setterName,
               style={{
                 width: dimensions.width,
                 height: dimensions.height,
-                left: '50%',
-                top: '50%',
-                transform: 'translate(-50%, -50%)',
+                left: dimensions.left,
+                top: dimensions.top,
               }}
             >
               {holds.map((hold) => {
