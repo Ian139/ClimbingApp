@@ -341,7 +341,7 @@ function EditorContent() {
       {/* Bottom Controls - clean, modern */}
       <div className="absolute bottom-0 left-0 right-0 z-50">
         {/* Mobile: Bottom panel raised above nav */}
-        <div className="md:hidden mb-[72px]">
+        <div className="md:hidden mb-[104px]">
           {/* Container with matching background */}
           <div className="bg-background/95 backdrop-blur-xl border-t border-border/30 px-6 pt-4 pb-4">
             <div className="flex items-center justify-between gap-2">
