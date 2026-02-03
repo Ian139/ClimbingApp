@@ -139,7 +139,7 @@ export default function Home() {
   const { theme, setTheme } = useTheme();
   const { selectedWall, setSelectedWall } = useWallStore();
   const { walls, addWall, updateWall, deleteWall, fetchWalls } = useWallsStore();
-  const { routes, deleteRoute, addAscent, hasUserClimbed, fetchRoutes, isLoading: routesLoading, incrementViewCount, toggleLike, isLikedByUser, getLikeCount, updateRoute } = useRoutesStore();
+  const { routes, deleteRoute, addAscent, hasUserClimbed, fetchRoutes, isLoading: routesLoading, incrementViewCount, toggleLike, isLikedByUser, getLikeCount, updateRoute, isOfflineMode } = useRoutesStore();
   const { userId, displayName, isModerator } = useUserStore();
   const startTransition = useTransitionStore((state) => state.startTransition);
   const isClient = useIsClient();
@@ -555,6 +555,11 @@ export default function Home() {
     <div className="min-h-dvh bg-background pb-28 md:pb-8">
       {/* Header */}
       <header className="px-4 md:px-8 pt-6 pb-4">
+        {isOfflineMode && (
+          <div className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-700 dark:text-amber-300">
+            Local-only mode. Cloud sync is unavailable.
+          </div>
+        )}
         {/* Desktop Header */}
         <div className="hidden md:flex items-center justify-between border-b border-border/50 pb-4">
           <div className="flex items-center gap-8">

@@ -10,6 +10,7 @@ interface RoutesState {
   routes: Route[];
   isLoading: boolean;
   lastFetched: string | null;
+  isOfflineMode: boolean;
 
   // Actions
   addRoute: (route: Route) => Promise<void>;
@@ -41,6 +42,7 @@ export const useRoutesStore = create<RoutesState>()(
       routes: [],
       isLoading: false,
       lastFetched: null,
+      isOfflineMode: false,
 
       // Fetch all public routes from Supabase
       fetchRoutes: async () => {
@@ -76,7 +78,7 @@ export const useRoutesStore = create<RoutesState>()(
 
           if (result.error) {
             // Supabase not configured or permissions issue - keep existing local data
-            set({ isLoading: false });
+            set({ isLoading: false, isOfflineMode: true });
             return;
           }
 
@@ -123,14 +125,15 @@ export const useRoutesStore = create<RoutesState>()(
             set({
               routes: mergedRoutes,
               lastFetched: new Date().toISOString(),
-              isLoading: false
+              isLoading: false,
+              isOfflineMode: false,
             });
           } else {
-            set({ isLoading: false });
+            set({ isLoading: false, isOfflineMode: false });
           }
         } catch {
           // Network error - keep existing local data
-          set({ isLoading: false });
+          set({ isLoading: false, isOfflineMode: true });
         }
       },
 
