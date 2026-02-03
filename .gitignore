@@ -60,5 +60,8 @@ Thumbs.db
 *.cert
 *.log
 
+# Legacy/empty dirs
+climbing-app-next/
+
 # Local Supabase
 .supabase/
