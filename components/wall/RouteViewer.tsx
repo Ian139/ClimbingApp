@@ -121,9 +121,6 @@ export function RouteViewer({ wallImageUrl, holds, routeName, grade, setterName,
           )}
         </div>
 
-        {/* Gradient overlay at top for header */}
-        <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/70 to-transparent pointer-events-none" />
-
         {/* Route info - floating on top */}
         <div className="absolute top-0 inset-x-0 p-4">
           <div className="flex items-start gap-2.5 flex-wrap">
