@@ -6,6 +6,7 @@ import { LiquidTransition } from "@/components/shared/LiquidTransition";
 import { Toaster } from "@/components/ui/sonner";
 import { Providers } from "@/components/providers/Providers";
 import { Analytics } from "@vercel/analytics/next";
+import Script from "next/script";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -20,6 +21,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "ClimbSet - Digital Route Setter",
   description: "Document and share your climbing routes",
+  manifest: "/manifest.json",
+  icons: {
+    icon: "/icon.png",
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export const viewport: Viewport = {
@@ -28,6 +34,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
+  themeColor: "#6fa4ff",
 };
 
 export default function RootLayout({
@@ -46,6 +53,13 @@ export default function RootLayout({
           <LiquidTransition />
           <Toaster />
           <Analytics />
+          <Script id="sw-register" strategy="afterInteractive">{`
+            if ('serviceWorker' in navigator) {
+              window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').catch(() => {});
+              });
+            }
+          `}</Script>
         </Providers>
       </body>
     </html>
