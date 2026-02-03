@@ -55,8 +55,9 @@ export default function RootLayout({
           <Analytics />
           <Script id="sw-register" strategy="afterInteractive">{`
             if ('serviceWorker' in navigator) {
+              const version = '${process.env.NEXT_PUBLIC_APP_VERSION || '1'}';
               window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js').catch(() => {});
+                navigator.serviceWorker.register('/sw.js?v=' + version).catch(() => {});
               });
             }
           `}</Script>
