@@ -1,6 +1,6 @@
 {
   "name": "climbing-app-next",
-  "version": "0.1.0",
+  "version": "2.1.9",
   "private": true,
   "scripts": {
     "dev": "next dev",

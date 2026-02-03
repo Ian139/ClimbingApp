@@ -25,6 +25,7 @@ import { HOLD_COLORS, V_GRADES } from '@/lib/types';
 import { RouteViewer } from '@/components/wall/RouteViewer';
 import { Textarea } from '@/components/ui/textarea';
 import { compressImage } from '@/lib/utils/image';
+import { InstallPrompt } from '@/components/shared/InstallPrompt';
 
 const useIsClient = () =>
   useSyncExternalStore(
@@ -560,6 +561,7 @@ export default function Home() {
             Local-only mode. Cloud sync is unavailable.
           </div>
         )}
+        <InstallPrompt />
         {/* Desktop Header */}
         <div className="hidden md:flex items-center justify-between border-b border-border/50 pb-4">
           <div className="flex items-center gap-8">
