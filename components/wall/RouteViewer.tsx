@@ -126,16 +126,20 @@ export function RouteViewer({ wallImageUrl, holds, routeName, grade, setterName,
 
         {/* Route info - floating on top */}
         <div className="absolute top-0 inset-x-0 p-4">
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <h3 className="text-xl font-bold text-white drop-shadow-lg">{routeName}</h3>
-            {grade && (
-              <span className="px-2.5 py-1 rounded-full bg-primary/90 text-primary-foreground text-xs font-bold backdrop-blur-sm">
-                {grade}
-              </span>
-            )}
-            {setterName && (
-              <span className="text-sm text-white/60 drop-shadow ml-auto">by {setterName}</span>
-            )}
+          <div className="flex items-start gap-2.5 flex-wrap">
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h3 className="text-xl font-bold text-white drop-shadow-lg">{routeName}</h3>
+                {grade && (
+                  <span className="px-2.5 py-1 rounded-full bg-primary/90 text-primary-foreground text-xs font-bold backdrop-blur-sm">
+                    {grade}
+                  </span>
+                )}
+              </div>
+              {setterName && (
+                <span className="text-sm text-white/60 drop-shadow">by {setterName}</span>
+              )}
+            </div>
           </div>
         </div>
       </div>

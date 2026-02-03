@@ -73,7 +73,7 @@ export function CommentsSection({ routeId, comments }: CommentsSectionProps) {
       {/* Toggle Header */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-4 hover:bg-muted/50 transition-colors"
       >
         <div className="flex items-center gap-2">
           <svg
@@ -110,10 +110,10 @@ export function CommentsSection({ routeId, comments }: CommentsSectionProps) {
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="px-4 pb-4 space-y-3">
+            <div className="px-4 pb-5 space-y-3">
               {/* Comments List */}
               {sortedComments.length > 0 ? (
-                <div className="space-y-2 max-h-48 overflow-y-auto">
+                <div className="space-y-2 max-h-64 overflow-y-auto">
                   {sortedComments.map((comment) => (
                     <div
                       key={comment.id}
@@ -169,7 +169,7 @@ export function CommentsSection({ routeId, comments }: CommentsSectionProps) {
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
                   placeholder="Share beta or leave a comment..."
-                  rows={2}
+                  rows={3}
                   maxLength={1000}
                   className="w-full resize-none text-sm bg-muted/50 border border-border/50 rounded-xl px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                 />

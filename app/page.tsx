@@ -183,7 +183,11 @@ export default function Home() {
 
   const getShareUrl = (token: string) => {
     if (typeof window === 'undefined') return token;
-    const base = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+    const envBase = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_VERCEL_URL || '';
+    const sanitizedEnv = envBase.includes('$') ? '' : envBase;
+    const base = sanitizedEnv
+      ? (sanitizedEnv.startsWith('http') ? sanitizedEnv : `https://${sanitizedEnv}`)
+      : window.location.origin;
     return `${base.replace(/\/$/, '')}/share/${token}`;
   };
 
@@ -1095,19 +1099,6 @@ export default function Home() {
                                 {/* Action Buttons */}
                                 <div className="flex justify-center gap-2 pt-1">
                                   <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setRouteToView(route);
-                                    }}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-sm font-medium"
-                                  >
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                    </svg>
-                                    View
-                                  </button>
-                                  <button
                                     onClick={(e) => openLogDialog(route, e)}
                                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary/10 text-secondary text-sm font-medium"
                                   >
@@ -1805,13 +1796,24 @@ export default function Home() {
       {/* Route Viewer Dialog */}
       <Dialog open={!!routeToView} onOpenChange={() => setRouteToView(null)}>
         <DialogContent
-          className="max-w-3xl h-[85vh] p-0 overflow-hidden border-0 bg-black/60 backdrop-blur-sm rounded-2xl shadow-2xl ring-1 ring-white/10"
+          className="max-w-3xl w-dvw h-dvh md:w-auto md:h-[85vh] p-0 overflow-hidden border-0 bg-black/60 backdrop-blur-sm rounded-none md:rounded-2xl shadow-2xl ring-1 ring-white/10"
           showCloseButton={false}
           aria-describedby={undefined}
         >
           <DialogTitle className="sr-only">
             {routeToView?.name || 'Route Viewer'}
           </DialogTitle>
+          {routeToView && (
+            <button
+              onClick={() => setRouteToView(null)}
+              aria-label="Close"
+              className="absolute top-3 right-3 z-10 size-10 rounded-full bg-black/60 text-white/80 hover:text-white hover:bg-black/70 transition-colors"
+            >
+              <svg className="w-5 h-5 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
           {routeToView && selectedWall && (
             <RouteViewer
               wallImageUrl={routeToView.wall_image_url || selectedWall.image_url}
