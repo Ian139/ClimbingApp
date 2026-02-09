@@ -1,27 +1,22 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { HOLD_COLORS } from '@climbset/shared';
 
 export default function EditorScreen() {
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Route Editor</Text>
-      <Text style={styles.subtitle}>Place holds on your wall</Text>
-      <View style={styles.holdRow}>
+    <View className="flex-1 bg-gray-950 items-center justify-center">
+      <Text className="text-white text-xl font-bold mb-2">Route Editor</Text>
+      <Text className="text-white/50 text-sm mb-6">Tap holds on your wall</Text>
+      <View className="flex-row gap-3">
         {Object.entries(HOLD_COLORS).map(([type, color]) => (
-          <View
-            key={type}
-            style={[styles.holdDot, { backgroundColor: color }]}
-          />
+          <Pressable key={type} className="items-center gap-1">
+            <View
+              style={{ backgroundColor: color }}
+              className="w-8 h-8 rounded-full"
+            />
+            <Text className="text-white/60 text-xs capitalize">{type}</Text>
+          </Pressable>
         ))}
       </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
-  title: { fontSize: 28, fontWeight: 'bold' },
-  subtitle: { fontSize: 16, color: '#888', marginTop: 8 },
-  holdRow: { flexDirection: 'row', gap: 8, marginTop: 16 },
-  holdDot: { width: 32, height: 32, borderRadius: 16 },
-});

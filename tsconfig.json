@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -19,9 +23,15 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"],
-      "@climbset/shared": ["./packages/shared/index.ts"],
-      "@climbset/shared/*": ["./packages/shared/*"]
+      "@/*": [
+        "./*"
+      ],
+      "@climbset/shared": [
+        "./packages/shared/index.ts"
+      ],
+      "@climbset/shared/*": [
+        "./packages/shared/*"
+      ]
     }
   },
   "include": [
@@ -32,5 +42,9 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "apps"]
+  "exclude": [
+    "node_modules",
+    "apps"
+  ],
+  "extends": "expo/tsconfig.base"
 }

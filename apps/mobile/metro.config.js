@@ -1,12 +1,26 @@
 const path = require('path');
 
-// Fix hoisted package resolution (see monorepo-gotchas.md)
-const Module = require('module');
-const originalResolveFilename = Module._resolveFilename;
+// ── Force mobile's node_modules for tailwindcss (v3) resolution ──
+// NativeWind needs tailwindcss v3 but the monorepo root has v4.
+// This patch ensures ALL requires of tailwindcss (including from
+// PostCSS/NativeWind internals) resolve to mobile's copy.
 const mobileNodeModules = path.resolve(__dirname, 'node_modules');
 
+// Set NODE_PATH so any child processes also prefer mobile's modules
+process.env.NODE_PATH = mobileNodeModules + ':' + (process.env.NODE_PATH || '');
+require('module').Module._initPaths();
+
+const Module = require('module');
+const originalResolveFilename = Module._resolveFilename;
+
 Module._resolveFilename = function (request, parent, isMain, options) {
-  if (request === 'tailwindcss' || request.startsWith('tailwindcss/')) {
+  // Force tailwindcss and postcss-related requires to mobile's node_modules
+  if (
+    request === 'tailwindcss' ||
+    request.startsWith('tailwindcss/') ||
+    request === 'postcss' ||
+    request.startsWith('postcss/')
+  ) {
     try {
       return originalResolveFilename.call(this, request, parent, isMain, {
         ...options,
@@ -46,21 +60,19 @@ config.resolver.nodeModulesPaths = [
 ];
 
 // Block root's react to prevent duplicate copies.
-// Root has react@19.2.3, mobile has react@19.1.0 (matched to RN 0.81).
-// Without this, Metro loads both → "Invalid hook call" crash.
+// Block root's tailwindcss to prevent v4 from being picked up.
 const escRoot = monorepoRoot.replace(/[/\\]/g, '[/\\\\]');
 config.resolver.blockList = [
   /\.next\/.*/,
   /\.git\/.*/,
   new RegExp(`${escRoot}[/\\\\]node_modules[/\\\\]react[/\\\\](?!native)`),
+  new RegExp(`${escRoot}[/\\\\]node_modules[/\\\\]tailwindcss[/\\\\]`),
 ];
 
 // Disable watchman — can cause hangs in monorepos
 config.resolver.useWatchman = false;
 
-// TODO: Re-enable NativeWind once bundling is stable
-// module.exports = withNativeWind(config, {
-//   input: './global.css',
-//   configPath: './tailwind.config.ts',
-// });
-module.exports = config;
+module.exports = withNativeWind(config, {
+  input: './global.css',
+  configPath: './tailwind.config.js',
+});

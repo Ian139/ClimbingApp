@@ -1,16 +1,22 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
+import { useRouter } from 'expo-router';
 
 export default function ProfileScreen() {
+  const router = useRouter();
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Profile</Text>
-      <Text style={styles.subtitle}>Your climbing stats</Text>
+    <View className="flex-1 bg-gray-50 items-center justify-center">
+      <View className="w-16 h-16 rounded-full bg-red-50 items-center justify-center mb-4">
+        <Text className="text-2xl">🧗</Text>
+      </View>
+      <Text className="text-xl font-bold text-gray-900 mb-1">Profile</Text>
+      <Text className="text-sm text-gray-400 mb-6">Your climbing stats</Text>
+      <Pressable
+        className="px-4 py-2 rounded-xl bg-gray-100 active:bg-gray-200"
+        onPress={() => router.push('/settings')}
+      >
+        <Text className="text-sm font-medium text-gray-600">Settings</Text>
+      </Pressable>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
-  title: { fontSize: 28, fontWeight: 'bold' },
-  subtitle: { fontSize: 16, color: '#888', marginTop: 8 },
-});
