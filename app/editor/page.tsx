@@ -14,8 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useWallStore } from '@/lib/stores/wall-store';
-import { DEFAULT_WALL } from '@/lib/stores/walls-store';
+import { useWallsStore, DEFAULT_WALL } from '@/lib/stores/walls-store';
 import { useRoutesStore } from '@/lib/stores/routes-store';
 import { useUserStore } from '@/lib/stores/user-store';
 
@@ -61,7 +60,7 @@ function EditorContent() {
     toggleSequenceVisibility,
   } = useHolds();
 
-  const { selectedWall } = useWallStore();
+  const { selectedWall } = useWallsStore();
   const { routes, addRoute, updateRoute } = useRoutesStore();
   const { userId, displayName, isModerator } = useUserStore();
   const wall = selectedWall?.id === 'all-walls' ? DEFAULT_WALL : (selectedWall || DEFAULT_WALL);

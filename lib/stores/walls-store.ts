@@ -20,9 +20,11 @@ export const DEFAULT_WALL: Wall = {
 
 interface WallsState {
   walls: Wall[];
+  selectedWall: Wall | null;
   isLoading: boolean;
 
   // Actions
+  setSelectedWall: (wall: Wall | null) => void;
   addWall: (wall: Wall) => Promise<void>;
   updateWall: (id: string, updates: Partial<Wall>) => Promise<void>;
   deleteWall: (id: string) => Promise<void>;
@@ -36,7 +38,10 @@ export const useWallsStore = create<WallsState>()(
   persist(
     (set, get) => ({
       walls: [DEFAULT_WALL],
+      selectedWall: DEFAULT_WALL,
       isLoading: false,
+
+      setSelectedWall: (wall) => set({ selectedWall: wall }),
 
       // Fetch all public walls from Supabase
       fetchWalls: async () => {
@@ -166,6 +171,7 @@ export const useWallsStore = create<WallsState>()(
       name: 'climbset-walls',
       partialize: (state) => ({
         walls: state.walls,
+        selectedWall: state.selectedWall,
       }),
     }
   )

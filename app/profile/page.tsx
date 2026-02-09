@@ -1,53 +1,12 @@
 'use client';
 
-import { useMemo, useEffect, useSyncExternalStore } from 'react';
+import { useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useUserStore } from '@/lib/stores/user-store';
 import { useRoutesStore } from '@/lib/stores/routes-store';
-import { V_GRADES } from '@/lib/types';
 import { cn } from '@/lib/utils';
-
-const useIsClient = () =>
-  useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false
-  );
-
-// Grade to numeric value for sorting
-const gradeToNumber = (grade?: string): number => {
-  if (!grade) return -1;
-  const index = V_GRADES.indexOf(grade);
-  return index >= 0 ? index : -1;
-};
-
-// Convert numeric grade back to V grade string
-const numberToGrade = (num: number): string | undefined => {
-  const rounded = Math.round(num);
-  if (rounded >= 0 && rounded < V_GRADES.length) {
-    return V_GRADES[rounded];
-  }
-  return undefined;
-};
-
-// Calculate display grade: half setter's grade + average of user grades
-const calculateDisplayGrade = (setterGrade?: string, ascents?: { grade_v?: string }[]): string | undefined => {
-  const setterNum = gradeToNumber(setterGrade);
-  const userGrades = (ascents || [])
-    .map(a => gradeToNumber(a.grade_v))
-    .filter(g => g >= 0);
-
-  if (setterNum < 0 && userGrades.length === 0) return undefined;
-  if (setterNum >= 0 && userGrades.length === 0) return setterGrade;
-  if (setterNum < 0 && userGrades.length > 0) {
-    const avgUser = userGrades.reduce((sum, g) => sum + g, 0) / userGrades.length;
-    return numberToGrade(avgUser);
-  }
-
-  const avgUser = userGrades.reduce((sum, g) => sum + g, 0) / userGrades.length;
-  const combined = (setterNum * 0.5) + (avgUser * 0.5);
-  return numberToGrade(combined);
-};
+import { useIsClient } from '@/lib/hooks/useIsClient';
+import { gradeToNumber, calculateDisplayGrade } from '@/lib/utils/grades';
 
 export default function ProfilePage() {
   const { user, displayName, userId, isAuthenticated } = useUserStore();
