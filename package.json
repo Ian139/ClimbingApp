@@ -2,6 +2,10 @@
   "name": "climbing-app-next",
   "version": "2.1.9",
   "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
     "dev": "next dev",
     "build": "next build",

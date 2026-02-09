@@ -1,5 +1,5 @@
 # Dependencies
-/node_modules
+node_modules
 /.pnp
 .pnp.*
 .yarn/*
@@ -65,3 +65,13 @@ climbing-app-next/
 
 # Local Supabase
 .supabase/
+
+# Expo
+.expo/
+ios/
+android/
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+!.env.example
