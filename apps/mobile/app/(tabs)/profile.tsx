@@ -1,9 +1,10 @@
-import { useMemo } from 'react';
-import { View, Text, Pressable, ScrollView } from 'react-native';
+import { useMemo, useEffect } from 'react';
+import { View, Text, Pressable, ScrollView, Image } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
 import { HOLD_COLORS, type HoldType } from '@climbset/shared';
 import { useRoutesStore } from '../../lib/stores/routes-store';
+import { useUserStore } from '../../lib/stores/user-store';
 
 function getTimeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -55,6 +56,13 @@ function ProgressBar({ color, percentage }: { color: string; percentage: number 
 export default function ProfileScreen() {
   const router = useRouter();
   const routes = useRoutesStore((s) => s.routes);
+  const { user, profile, isAuthenticated, syncProfile } = useUserStore();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      syncProfile();
+    }
+  }, [isAuthenticated, syncProfile]);
 
   const stats = useMemo(() => {
     const allHolds = routes.flatMap(r => r.holds || []);
@@ -99,12 +107,24 @@ export default function ProfileScreen() {
             width: 64, height: 64, borderRadius: 32,
             alignItems: 'center', justifyContent: 'center',
             backgroundColor: 'rgba(74,124,89,0.12)',
+            overflow: 'hidden',
           }}>
-            <Text style={{ fontSize: 28 }}>🧗</Text>
+            {profile?.avatar_url ? (
+              <Image source={{ uri: profile.avatar_url }} style={{ width: 64, height: 64 }} />
+            ) : (
+              <Text style={{ fontSize: 28 }}>🧗</Text>
+            )}
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 20, fontWeight: '700', color: '#3d2817' }}>Climber</Text>
-            <Text style={{ fontSize: 14, color: '#8b7668', marginTop: 2 }}>Local setter</Text>
+            <Text style={{ fontSize: 20, fontWeight: '700', color: '#3d2817' }}>
+              {profile?.full_name || user?.displayName || 'Climber'}
+            </Text>
+            <Text style={{ fontSize: 14, color: '#8b7668', marginTop: 2 }}>
+              {profile?.username ? `@${profile.username}` : 'Local setter'}
+            </Text>
+            {user?.email ? (
+              <Text style={{ fontSize: 12, color: '#8b7668', marginTop: 2 }}>{user.email}</Text>
+            ) : null}
           </View>
           <Pressable
             style={{

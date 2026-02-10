@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Alert,
   LayoutChangeEvent,
   GestureResponderEvent,
+  Image,
 } from 'react-native';
 import {
   HOLD_COLORS,
@@ -21,6 +22,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { nanoid } from 'nanoid/non-secure';
 import { useRoutesStore } from '../../lib/stores/routes-store';
+import { useWallsStore } from '../../lib/stores/walls-store';
 
 const HOLD_TYPES: HoldType[] = ['start', 'hand', 'foot', 'finish'];
 const HOLD_SIZE_PX: Record<HoldSize, number> = { small: 16, medium: 24, large: 36 };
@@ -35,6 +37,11 @@ export default function EditorScreen() {
   const [routeName, setRouteName] = useState('');
   const [routeGrade, setRouteGrade] = useState('');
   const [undoStack, setUndoStack] = useState<Hold[][]>([]);
+  const { selectedWall, fetchWalls } = useWallsStore();
+
+  useEffect(() => {
+    fetchWalls();
+  }, [fetchWalls]);
 
   const canvasLayout = useRef({ width: 0, height: 0 });
 
@@ -100,11 +107,14 @@ export default function EditorScreen() {
   const addRoute = useRoutesStore((s) => s.addRoute);
 
   const handleSave = async () => {
+    const wallId = selectedWall?.id || 'default-wall';
+    const wallImageUrl = selectedWall?.image_url || undefined;
     const route = {
       id: nanoid(),
       user_id: 'local-user',
       user_name: 'You',
-      wall_id: 'default-wall',
+      wall_id: wallId,
+      wall_image_url: wallImageUrl,
       name: routeName.trim(),
       grade_v: routeGrade || undefined,
       holds,
@@ -134,27 +144,58 @@ export default function EditorScreen() {
   );
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#1a1917' }} edges={['top']}>
-      {/* Header — frosted glass */}
-      <BlurView intensity={40} tint="systemChromeMaterialDark" style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' }}>
+    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+      {/* Header */}
+      <BlurView
+        intensity={40}
+        tint="systemChromeMaterialLight"
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingHorizontal: 16,
+          paddingVertical: 8,
+          borderBottomWidth: 1,
+          borderBottomColor: 'rgba(230,221,208,0.6)',
+        }}
+      >
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <Pressable
             style={{
-              width: 40, height: 40, borderRadius: 12,
-              backgroundColor: undoStack.length > 0 ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.05)',
-              alignItems: 'center', justifyContent: 'center',
+              width: 40,
+              height: 40,
+              borderRadius: 12,
+              backgroundColor: undoStack.length > 0 ? 'rgba(255,251,247,0.95)' : 'rgba(255,251,247,0.6)',
+              borderWidth: 1,
+              borderColor: 'rgba(230,221,208,0.7)',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
             onPress={handleUndo}
             disabled={undoStack.length === 0}
           >
-            <Text style={{ color: undoStack.length > 0 ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.2)', fontSize: 18 }}>
+            <Text
+              style={{
+                color: undoStack.length > 0 ? '#3d2817' : '#8b766880',
+                fontSize: 18,
+              }}
+            >
               ↩
             </Text>
           </Pressable>
 
           {holds.length > 0 && (
-            <View style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
-              <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '500' }}>
+            <View
+              style={{
+                backgroundColor: 'rgba(255,251,247,0.95)',
+                borderRadius: 10,
+                paddingHorizontal: 10,
+                paddingVertical: 4,
+                borderWidth: 1,
+                borderColor: 'rgba(230,221,208,0.7)',
+              }}
+            >
+              <Text style={{ color: '#8b7668', fontSize: 12, fontWeight: '500' }}>
                 {holds.length} {holds.length === 1 ? 'hold' : 'holds'}
               </Text>
             </View>
@@ -163,17 +204,19 @@ export default function EditorScreen() {
 
         <Pressable
           style={{
-            paddingHorizontal: 20, paddingVertical: 10, borderRadius: 14,
-            backgroundColor: holds.length > 0 ? '#8b6f47' : 'rgba(255,255,255,0.08)',
+            paddingHorizontal: 20,
+            paddingVertical: 10,
+            borderRadius: 14,
+            backgroundColor: holds.length > 0 ? '#8b6f47' : '#ede5d8',
             shadowColor: holds.length > 0 ? '#8b6f47' : 'transparent',
             shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.3,
+            shadowOpacity: 0.25,
             shadowRadius: 8,
           }}
           onPress={() => holds.length > 0 && setSaveModalVisible(true)}
           disabled={holds.length === 0}
         >
-          <Text style={{ fontWeight: '600', color: holds.length > 0 ? '#fffbf7' : 'rgba(255,255,255,0.3)' }}>
+          <Text style={{ fontWeight: '600', color: holds.length > 0 ? '#fffbf7' : '#8b766880' }}>
             Save
           </Text>
         </Pressable>
@@ -182,35 +225,89 @@ export default function EditorScreen() {
       {/* Canvas */}
       <View
         style={{
-          flex: 1, marginHorizontal: 12, marginBottom: 8, borderRadius: 16,
-          overflow: 'hidden', backgroundColor: '#232017',
-          borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+          flex: 1,
+          marginHorizontal: 12,
+          marginBottom: 8,
+          borderRadius: 16,
+          overflow: 'hidden',
+          backgroundColor: '#fffbf7',
+          borderWidth: 1,
+          borderColor: '#e6ddd0',
         }}
         onLayout={handleCanvasLayout}
         onStartShouldSetResponder={() => true}
         onResponderRelease={handleCanvasPress}
       >
+        {selectedWall?.image_url ? (
+          <Image
+            source={{ uri: selectedWall.image_url }}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+            resizeMode="cover"
+            pointerEvents="none"
+          />
+        ) : null}
         {/* Placeholder */}
         {holds.length === 0 && (
-          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}>
-            <View style={{ width: 64, height: 64, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.05)', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+          <View
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <View
+              style={{
+                width: 64,
+                height: 64,
+                borderRadius: 16,
+                backgroundColor: 'rgba(240,232,223,0.9)',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: 12,
+              }}
+            >
               <Text style={{ fontSize: 28 }}>👆</Text>
             </View>
-            <Text style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14, fontWeight: '500' }}>Tap to place holds</Text>
-            <Text style={{ color: 'rgba(255,255,255,0.15)', fontSize: 12, marginTop: 4 }}>Long-press a hold to remove it</Text>
+            <Text style={{ color: '#8b7668', fontSize: 14, fontWeight: '500' }}>Tap to place holds</Text>
+            <Text style={{ color: '#8b766880', fontSize: 12, marginTop: 4 }}>Long-press a hold to remove it</Text>
           </View>
         )}
 
         {/* Hold count overlay */}
         {holds.length > 0 && (
-          <View style={{ position: 'absolute', top: 12, left: 12, right: 12, flexDirection: 'row', flexWrap: 'wrap', gap: 6, zIndex: 10 }}>
+          <View
+            style={{
+              position: 'absolute',
+              top: 12,
+              left: 12,
+              right: 12,
+              flexDirection: 'row',
+              flexWrap: 'wrap',
+              gap: 6,
+              zIndex: 10,
+            }}
+          >
             {Object.entries(holdCounts).map(([type, count]) => (
               <View
                 key={type}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 }}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                  backgroundColor: 'rgba(255,251,247,0.95)',
+                  borderRadius: 8,
+                  paddingHorizontal: 8,
+                  paddingVertical: 2,
+                  borderWidth: 1,
+                  borderColor: '#e6ddd0',
+                }}
               >
                 <View style={{ backgroundColor: HOLD_COLORS[type as HoldType], width: 8, height: 8, borderRadius: 4 }} />
-                <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: '500' }}>
+                <Text style={{ color: '#3d2817', fontSize: 10, fontWeight: '500' }}>
                   {count} {type}
                 </Text>
               </View>
@@ -240,15 +337,23 @@ export default function EditorScreen() {
                 transform: [{ translateX: -size / 2 }, { translateY: -size / 2 }],
                 alignItems: 'center',
                 justifyContent: 'center',
-                // Glow effect
                 shadowColor: hold.color,
                 shadowOffset: { width: 0, height: 0 },
-                shadowOpacity: 0.4,
+                shadowOpacity: 0.35,
                 shadowRadius: 6,
               }}
             >
               {showSequence && hold.sequence != null && (
-                <Text style={{ color: '#fff', fontSize: size * 0.35, fontWeight: '700', textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
+                <Text
+                  style={{
+                    color: '#fff',
+                    fontSize: size * 0.35,
+                    fontWeight: '700',
+                    textShadowColor: 'rgba(0,0,0,0.6)',
+                    textShadowOffset: { width: 0, height: 1 },
+                    textShadowRadius: 3,
+                  }}
+                >
                   {hold.sequence}
                 </Text>
               )}
@@ -257,8 +362,17 @@ export default function EditorScreen() {
         })}
       </View>
 
-      {/* Bottom Controls — frosted glass */}
-      <BlurView intensity={40} tint="systemChromeMaterialDark" style={{ paddingHorizontal: 12, paddingBottom: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)' }}>
+      {/* Bottom Controls */}
+      <BlurView
+        intensity={40}
+        tint="systemChromeMaterialLight"
+        style={{
+          paddingHorizontal: 12,
+          paddingBottom: 12,
+          borderTopWidth: 1,
+          borderTopColor: 'rgba(230,221,208,0.6)',
+        }}
+      >
         {/* Hold Type Pills */}
         <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8, marginTop: 8 }}>
           {HOLD_TYPES.map((type) => {
@@ -268,16 +382,28 @@ export default function EditorScreen() {
               <Pressable
                 key={type}
                 style={{
-                  flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-                  gap: 6, paddingVertical: 10, borderRadius: 12,
-                  backgroundColor: isSelected ? color + '15' : 'rgba(255,255,255,0.05)',
+                  flex: 1,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  paddingVertical: 10,
+                  borderRadius: 12,
+                  backgroundColor: isSelected ? color + '15' : 'rgba(255,251,247,0.9)',
                   borderWidth: 1,
-                  borderColor: isSelected ? color + '40' : 'transparent',
+                  borderColor: isSelected ? color + '40' : '#e6ddd0',
                 }}
                 onPress={() => setSelectedType(type)}
               >
                 <View style={{ backgroundColor: color, width: 10, height: 10, borderRadius: 5 }} />
-                <Text style={{ fontSize: 12, fontWeight: '500', textTransform: 'capitalize', color: isSelected ? '#fff' : 'rgba(255,255,255,0.5)' }}>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontWeight: '500',
+                    textTransform: 'capitalize',
+                    color: isSelected ? '#3d2817' : '#8b7668',
+                  }}
+                >
                   {type}
                 </Text>
               </Pressable>
@@ -297,47 +423,65 @@ export default function EditorScreen() {
                 <Pressable
                   key={size}
                   style={{
-                    width: 40, height: 40, alignItems: 'center', justifyContent: 'center',
+                    width: 40,
+                    height: 40,
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     borderRadius: 12,
-                    backgroundColor: isSelected ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.05)',
+                    backgroundColor: isSelected ? 'rgba(255,251,247,0.95)' : 'rgba(255,251,247,0.8)',
+                    borderWidth: 1,
+                    borderColor: isSelected ? '#e6ddd0' : 'transparent',
                   }}
                   onPress={() => setSelectedSize(size)}
                 >
                   <View
                     style={{
-                      width: dotSize, height: dotSize, borderRadius: dotSize / 2,
-                      borderWidth: bw, borderColor: HOLD_COLORS[selectedType],
+                      width: dotSize,
+                      height: dotSize,
+                      borderRadius: dotSize / 2,
+                      borderWidth: bw,
+                      borderColor: HOLD_COLORS[selectedType],
                       backgroundColor: isSelected ? HOLD_COLORS[selectedType] + '33' : 'transparent',
                     }}
                   />
                 </Pressable>
               );
             })}
-            <Text style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, marginLeft: 4, textTransform: 'capitalize' }}>{selectedSize}</Text>
+            <Text style={{ color: '#8b7668', fontSize: 10, marginLeft: 4, textTransform: 'capitalize' }}>{selectedSize}</Text>
           </View>
 
           {/* Action buttons */}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <Pressable
               style={{
-                width: 40, height: 40, alignItems: 'center', justifyContent: 'center',
+                width: 40,
+                height: 40,
+                alignItems: 'center',
+                justifyContent: 'center',
                 borderRadius: 12,
-                backgroundColor: showSequence ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.05)',
+                backgroundColor: showSequence ? 'rgba(255,251,247,0.95)' : 'rgba(255,251,247,0.8)',
+                borderWidth: 1,
+                borderColor: showSequence ? '#e6ddd0' : 'transparent',
               }}
               onPress={() => setShowSequence((v) => !v)}
             >
-              <Text style={{ fontWeight: '700', color: showSequence ? '#fff' : 'rgba(255,255,255,0.4)' }}>#</Text>
+              <Text style={{ fontWeight: '700', color: showSequence ? '#3d2817' : '#8b7668' }}>#</Text>
             </Pressable>
             <Pressable
               style={{
-                width: 40, height: 40, alignItems: 'center', justifyContent: 'center',
+                width: 40,
+                height: 40,
+                alignItems: 'center',
+                justifyContent: 'center',
                 borderRadius: 12,
-                backgroundColor: 'rgba(255,255,255,0.05)',
+                backgroundColor: 'rgba(255,251,247,0.8)',
+                borderWidth: 1,
+                borderColor: 'transparent',
               }}
               onPress={clearHolds}
               disabled={holds.length === 0}
             >
-              <Text style={{ color: holds.length > 0 ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.15)' }}>🗑</Text>
+              <Text style={{ color: holds.length > 0 ? '#8b7668' : '#8b766840' }}>🗑</Text>
             </Pressable>
           </View>
         </View>
@@ -370,8 +514,13 @@ export default function EditorScreen() {
               <Text className="text-sm font-medium text-foreground mb-1.5">Route Name</Text>
               <TextInput
                 style={{
-                  backgroundColor: '#ede5d8', borderRadius: 12, paddingHorizontal: 16,
-                  paddingVertical: 12, fontSize: 16, color: '#3d2817', marginBottom: 20,
+                  backgroundColor: '#ede5d8',
+                  borderRadius: 12,
+                  paddingHorizontal: 16,
+                  paddingVertical: 12,
+                  fontSize: 16,
+                  color: '#3d2817',
+                  marginBottom: 20,
                 }}
                 placeholder="e.g., Crimpy Corner"
                 placeholderTextColor="#8b7668"
@@ -389,12 +538,20 @@ export default function EditorScreen() {
                 <View style={{ flexDirection: 'row', gap: 6 }}>
                   <Pressable
                     style={{
-                      paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8,
+                      paddingHorizontal: 14,
+                      paddingVertical: 8,
+                      borderRadius: 8,
                       backgroundColor: !routeGrade ? '#3d2817' : '#ede5d8',
                     }}
                     onPress={() => setRouteGrade('')}
                   >
-                    <Text style={{ fontSize: 14, color: !routeGrade ? '#fffbf7' : '#8b7668', fontWeight: !routeGrade ? '500' : '400' }}>
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        color: !routeGrade ? '#fffbf7' : '#8b7668',
+                        fontWeight: !routeGrade ? '500' : '400',
+                      }}
+                    >
                       Ungraded
                     </Text>
                   </Pressable>
@@ -402,12 +559,20 @@ export default function EditorScreen() {
                     <Pressable
                       key={g}
                       style={{
-                        paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8,
+                        paddingHorizontal: 14,
+                        paddingVertical: 8,
+                        borderRadius: 8,
                         backgroundColor: routeGrade === g ? '#3d2817' : '#ede5d8',
                       }}
                       onPress={() => setRouteGrade(g)}
                     >
-                      <Text style={{ fontSize: 14, color: routeGrade === g ? '#fffbf7' : '#8b7668', fontWeight: routeGrade === g ? '500' : '400' }}>
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          color: routeGrade === g ? '#fffbf7' : '#8b7668',
+                          fontWeight: routeGrade === g ? '500' : '400',
+                        }}
+                      >
                         {g}
                       </Text>
                     </Pressable>

@@ -1,9 +1,20 @@
 import '../global.css';
+import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useUserStore } from '../lib/stores/user-store';
+import { useWallsStore } from '../lib/stores/walls-store';
 
 export default function RootLayout() {
+  const initializeAuth = useUserStore((s) => s.initializeAuth);
+  const fetchWalls = useWallsStore((s) => s.fetchWalls);
+
+  useEffect(() => {
+    initializeAuth();
+    fetchWalls();
+  }, [initializeAuth, fetchWalls]);
+
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />

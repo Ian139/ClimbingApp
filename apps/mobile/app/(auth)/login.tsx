@@ -1,37 +1,93 @@
-import { View, Text, TextInput, Pressable } from 'react-native';
 import { useState } from 'react';
+import { View, Text, TextInput, Pressable, ScrollView } from 'react-native';
 import { router } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useUserStore } from '../../lib/stores/user-store';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const login = useUserStore((s) => s.login);
+
+  const handleLogin = async () => {
+    setError('');
+    setIsLoading(true);
+    const result = await login(email.trim(), password);
+    setIsLoading(false);
+    if (result.success) {
+      router.replace('/(tabs)');
+    } else {
+      setError(result.error || 'Login failed');
+    }
+  };
 
   return (
-    <View className="flex-1 justify-center px-6 bg-white">
-      <Text className="text-3xl font-bold text-center mb-8">ClimbSet</Text>
-      <TextInput
-        className="border border-gray-300 rounded-lg px-4 py-3 mb-4"
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-      />
-      <TextInput
-        className="border border-gray-300 rounded-lg px-4 py-3 mb-6"
-        placeholder="Password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
-      <Pressable className="bg-red-500 rounded-lg py-3 items-center mb-4">
-        <Text className="text-white font-semibold text-lg">Log In</Text>
-      </Pressable>
-      <Pressable onPress={() => router.push('/(auth)/signup')}>
-        <Text className="text-center text-gray-500">
-          Don't have an account? <Text className="text-red-500">Sign Up</Text>
-        </Text>
-      </Pressable>
-    </View>
+    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
+        <View className="px-5 pt-4">
+          <Pressable
+            className="h-10 w-10 items-center justify-center rounded-xl border border-border bg-card"
+            onPress={() => router.back()}
+          >
+            <Text className="text-muted-foreground text-lg">‹</Text>
+          </Pressable>
+        </View>
+
+        <View className="px-6 pt-6">
+          <View className="items-center mb-6">
+            <View className="h-14 w-14 items-center justify-center rounded-2xl bg-secondary/10">
+              <Text className="text-2xl">🧗</Text>
+            </View>
+            <Text className="text-2xl font-semibold text-foreground mt-4">Welcome back</Text>
+            <Text className="text-sm text-muted-foreground mt-1">Log in to your ClimbSet account</Text>
+          </View>
+
+          <View className="rounded-2xl border border-border bg-card px-4 py-5">
+            <Text className="text-sm font-medium text-foreground mb-2">Email</Text>
+            <TextInput
+              className="border border-border bg-muted rounded-xl px-4 py-3 text-foreground mb-4"
+              placeholder="you@example.com"
+              placeholderTextColor="#8b7668"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+
+            <Text className="text-sm font-medium text-foreground mb-2">Password</Text>
+            <TextInput
+              className="border border-border bg-muted rounded-xl px-4 py-3 text-foreground"
+              placeholder="Enter your password"
+              placeholderTextColor="#8b7668"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+
+            {error ? (
+              <Text className="text-sm text-destructive mt-3">{error}</Text>
+            ) : null}
+
+            <Pressable
+              className="bg-primary rounded-xl py-3 items-center mt-5"
+              onPress={handleLogin}
+              disabled={isLoading}
+            >
+              <Text className="text-primary-foreground font-semibold text-base">
+                {isLoading ? 'Logging in...' : 'Log In'}
+              </Text>
+            </Pressable>
+          </View>
+
+          <Pressable onPress={() => router.push('/(auth)/signup')} className="mt-5">
+            <Text className="text-center text-sm text-muted-foreground">
+              Don&apos;t have an account? <Text className="text-primary font-medium">Sign Up</Text>
+            </Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
