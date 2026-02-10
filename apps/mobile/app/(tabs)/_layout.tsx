@@ -34,20 +34,22 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#ef4444',
-        tabBarInactiveTintColor: '#9ca3af',
+        tabBarActiveTintColor: '#8b6f47',    // primary warm brown
+        tabBarInactiveTintColor: '#8b7668',  // muted foreground
         tabBarStyle: {
+          backgroundColor: '#fffbf7',         // card
           borderTopWidth: 0.5,
-          borderTopColor: '#e5e7eb',
+          borderTopColor: '#e6ddd0',          // border
           paddingTop: 4,
         },
         headerStyle: {
-          backgroundColor: '#ffffff',
+          backgroundColor: '#fffbf7',         // card
         },
         headerShadowVisible: false,
         headerTitleStyle: {
           fontWeight: '700',
           fontSize: 17,
+          color: '#3d2817',                   // foreground
         },
       }}
     >
@@ -62,6 +64,7 @@ export default function TabLayout() {
         name="editor"
         options={{
           title: 'Editor',
+          headerShown: false,
           tabBarIcon: ({ color }) => <TabIcon icon="editor" color={color} />,
         }}
       />
