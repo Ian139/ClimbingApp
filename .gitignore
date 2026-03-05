@@ -49,6 +49,8 @@ Thumbs.db
 *.swp
 *.swo
 *~
+**/xcuserdata/
+*.xcuserstate
 
 # Local tooling
 .claude/
@@ -75,3 +77,11 @@ android/
 *.p12
 *.mobileprovision
 !.env.example
+
+# Allow Swift app under apps/ios
+!apps/ios/
+!apps/ios/**
+apps/ios/**/.git/
+apps/ios/**/.DS_Store
+apps/ios/**/xcuserdata/
+apps/ios/**/*.xcuserstate
