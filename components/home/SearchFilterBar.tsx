@@ -2,7 +2,16 @@
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-type SortOption = 'newest' | 'oldest' | 'name' | 'grade-asc' | 'grade-desc' | 'rating';
+type SortOption =
+  | 'newest'
+  | 'oldest'
+  | 'name'
+  | 'grade-asc'
+  | 'grade-desc'
+  | 'rating'
+  | 'most-liked'
+  | 'most-climbed'
+  | 'most-viewed';
 
 interface SearchFilterBarProps {
   searchQuery: string;
@@ -73,6 +82,9 @@ export function SearchFilterBar({
                 <SelectItem value="grade-asc">Easiest</SelectItem>
                 <SelectItem value="grade-desc">Hardest</SelectItem>
                 <SelectItem value="rating">Top Rated</SelectItem>
+                <SelectItem value="most-liked">Most Liked</SelectItem>
+                <SelectItem value="most-climbed">Most Climbed</SelectItem>
+                <SelectItem value="most-viewed">Most Viewed</SelectItem>
               </SelectContent>
             </Select>
 
@@ -148,6 +160,9 @@ export function SearchFilterBar({
               <SelectItem value="grade-asc">Grade (Easiest)</SelectItem>
               <SelectItem value="grade-desc">Grade (Hardest)</SelectItem>
               <SelectItem value="rating">Highest Rated</SelectItem>
+              <SelectItem value="most-liked">Most Liked</SelectItem>
+              <SelectItem value="most-climbed">Most Climbed</SelectItem>
+              <SelectItem value="most-viewed">Most Viewed</SelectItem>
             </SelectContent>
           </Select>
 

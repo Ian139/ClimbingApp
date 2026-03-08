@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import { View } from 'react-native';
+import { useTheme } from '../../lib/theme';
 
 function TabIcon({ icon, color }: { icon: string; color: string }) {
   return (
@@ -31,25 +32,33 @@ function TabIcon({ icon, color }: { icon: string; color: string }) {
 }
 
 export default function TabLayout() {
+  const { colors } = useTheme();
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#8b6f47',    // primary warm brown
-        tabBarInactiveTintColor: '#8b7668',  // muted foreground
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.muted,
         tabBarStyle: {
-          backgroundColor: '#fffbf7',         // card
-          borderTopWidth: 0.5,
-          borderTopColor: '#e6ddd0',          // border
-          paddingTop: 4,
+          backgroundColor: 'transparent',
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
+          paddingTop: 6,
+          paddingBottom: 8,
+          shadowOpacity: 0,
+          elevation: 0,
         },
+        tabBarBackground: () => (
+          <View style={{ flex: 1, backgroundColor: colors.background }} />
+        ),
         headerStyle: {
-          backgroundColor: '#fffbf7',         // card
+          backgroundColor: colors.background,
         },
+        headerTintColor: colors.text,
         headerShadowVisible: false,
         headerTitleStyle: {
           fontWeight: '700',
           fontSize: 17,
-          color: '#3d2817',                   // foreground
+          color: colors.text,
         },
       }}
     >

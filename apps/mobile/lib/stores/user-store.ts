@@ -17,6 +17,9 @@ interface UserState {
   profile: Profile | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isProfileSyncing: boolean;
+  profileSyncError: string | null;
+  lastProfileSyncAt: string | null;
 
   signup: (email: string, password: string, displayName?: string) => Promise<{ success: boolean; error?: string }>;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
@@ -57,6 +60,9 @@ export const useUserStore = create<UserState>()(
       profile: null,
       isAuthenticated: false,
       isLoading: true,
+      isProfileSyncing: false,
+      profileSyncError: null,
+      lastProfileSyncAt: null,
 
       initializeAuth: async () => {
         try {
@@ -76,7 +82,14 @@ export const useUserStore = create<UserState>()(
               set({ user, isAuthenticated: true });
               get().syncProfile();
             } else {
-              set({ user: null, profile: null, isAuthenticated: false });
+              set({
+                user: null,
+                profile: null,
+                isAuthenticated: false,
+                isProfileSyncing: false,
+                profileSyncError: null,
+                lastProfileSyncAt: null,
+              });
             }
           });
         } catch {
@@ -129,16 +142,29 @@ export const useUserStore = create<UserState>()(
         } catch {
           // ignore
         }
-        set({ user: null, profile: null, isAuthenticated: false });
+        set({
+          user: null,
+          profile: null,
+          isAuthenticated: false,
+          isProfileSyncing: false,
+          profileSyncError: null,
+          lastProfileSyncAt: null,
+        });
       },
 
       syncProfile: async () => {
         const state = get();
         const currentUser = state.user;
         if (!currentUser) {
-          set({ profile: null });
+          set({
+            profile: null,
+            isProfileSyncing: false,
+            profileSyncError: null,
+          });
           return;
         }
+
+        set({ isProfileSyncing: true, profileSyncError: null });
 
         try {
           const { data, error } = await supabase
@@ -148,11 +174,20 @@ export const useUserStore = create<UserState>()(
             .single();
 
           if (error && error.code !== 'PGRST116') {
+            set({
+              isProfileSyncing: false,
+              profileSyncError: error.message || 'Failed to sync profile',
+            });
             return;
           }
 
           if (data) {
-            set({ profile: data as Profile });
+            set({
+              profile: data as Profile,
+              isProfileSyncing: false,
+              profileSyncError: null,
+              lastProfileSyncAt: new Date().toISOString(),
+            });
             return;
           }
 
@@ -170,10 +205,24 @@ export const useUserStore = create<UserState>()(
             .select('*')
             .single();
 
-          if (createError) return;
-          set({ profile: created as Profile });
+          if (createError) {
+            set({
+              isProfileSyncing: false,
+              profileSyncError: createError.message || 'Failed to create profile',
+            });
+            return;
+          }
+          set({
+            profile: created as Profile,
+            isProfileSyncing: false,
+            profileSyncError: null,
+            lastProfileSyncAt: new Date().toISOString(),
+          });
         } catch {
-          // ignore
+          set({
+            isProfileSyncing: false,
+            profileSyncError: 'Failed to sync profile',
+          });
         }
       },
 

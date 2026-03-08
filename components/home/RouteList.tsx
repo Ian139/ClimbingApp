@@ -5,12 +5,14 @@ import { nanoid } from 'nanoid';
 import { motion, AnimatePresence } from 'motion/react';
 import { useRoutesStore } from '@/lib/stores/routes-store';
 import { useUserStore } from '@/lib/stores/user-store';
+import { useWallsStore, DEFAULT_WALL } from '@/lib/stores/walls-store';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { StarRating } from '@/components/ui/star-rating';
 import { HOLD_COLORS } from '@/lib/types';
 import { calculateDisplayGrade } from '@/lib/utils/grades';
 import type { Route } from '@/lib/types';
+import Image from 'next/image';
 
 interface RouteListProps {
   routes: Route[];
@@ -23,6 +25,7 @@ interface RouteListProps {
 export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEditRoute }: RouteListProps) {
   const { userId, isModerator } = useUserStore();
   const { toggleLike, isLikedByUser, getLikeCount, hasUserClimbed, updateRoute } = useRoutesStore();
+  const { getWallById } = useWallsStore();
 
   const [flippedCards, setFlippedCards] = useState<Set<string>>(new Set());
 
@@ -96,6 +99,10 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
           const displayGrade = calculateDisplayGrade(route.grade_v, ascents);
           const isExpanded = flippedCards.has(route.id);
 
+          const wall = getWallById(route.wall_id);
+          const wallImage = route.wall_image_url || wall?.image_url || DEFAULT_WALL.image_url;
+          const wallName = wall?.name || 'Unknown wall';
+
           return (
             <motion.div
               key={route.id}
@@ -124,11 +131,22 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
                   </span>
                 </div>
 
+                {/* Wall thumbnail */}
+                <div className="relative size-12 shrink-0 overflow-hidden rounded-xl border border-border/60 bg-muted/40">
+                  <Image
+                    src={wallImage}
+                    alt={wallName}
+                    fill
+                    className="object-cover"
+                  />
+                </div>
+
                 {/* Route Info */}
                 <div className="flex-1 min-w-0">
                   <h3 className="font-medium text-foreground truncate">{route.name}</h3>
                   <div className="flex items-center gap-3 mt-0.5 text-sm text-muted-foreground">
                     <span className="truncate">{route.user_name || 'Anonymous'}</span>
+                    <span className="truncate text-xs">{wallName}</span>
                     <span className="flex items-center gap-1 shrink-0">
                       <div className="flex gap-0.5">
                         {route.holds.slice(0, 3).map((hold, i) => (
@@ -352,6 +370,10 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
             const displayGrade = calculateDisplayGrade(route.grade_v, ascents);
             const isExpanded = flippedCards.has(route.id);
 
+            const wall = getWallById(route.wall_id);
+            const wallImage = route.wall_image_url || wall?.image_url || DEFAULT_WALL.image_url;
+            const wallName = wall?.name || 'Unknown wall';
+
             return (
               <motion.div
                 key={route.id}
@@ -380,6 +402,16 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
                     </span>
                   </div>
 
+                  {/* Wall thumbnail */}
+                  <div className="relative size-12 shrink-0 overflow-hidden rounded-xl border border-border/60 bg-muted/40">
+                    <Image
+                      src={wallImage}
+                      alt={wallName}
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
+
                   {/* Route Info */}
                   <div className="flex-1 min-w-0">
                     <h3 className="font-medium text-foreground group-hover:text-primary transition-colors">
@@ -387,6 +419,7 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
                     </h3>
                     <div className="flex items-center gap-4 mt-0.5 text-sm text-muted-foreground">
                       <span>{route.user_name || 'Anonymous'}</span>
+                      <span className="truncate text-xs">{wallName}</span>
                       <span className="flex items-center gap-1">
                         <div className="flex gap-0.5">
                           {route.holds.slice(0, 4).map((hold, i) => (

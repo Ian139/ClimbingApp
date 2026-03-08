@@ -22,7 +22,16 @@ import { RouteList } from '@/components/home/RouteList';
 import { toast } from 'sonner';
 import type { Route } from '@/lib/types';
 
-type SortOption = 'newest' | 'oldest' | 'name' | 'grade-asc' | 'grade-desc' | 'rating';
+type SortOption =
+  | 'newest'
+  | 'oldest'
+  | 'name'
+  | 'grade-asc'
+  | 'grade-desc'
+  | 'rating'
+  | 'most-liked'
+  | 'most-climbed'
+  | 'most-viewed';
 
 export default function Home() {
   const router = useRouter();
@@ -138,6 +147,12 @@ export default function Home() {
           const bAvg = bRatings.length > 0 ? bRatings.reduce((sum, r) => sum + r, 0) / bRatings.length : 0;
           return bAvg - aAvg;
         }
+        case 'most-liked':
+          return (b.like_count || b.liked_by?.length || 0) - (a.like_count || a.liked_by?.length || 0);
+        case 'most-climbed':
+          return (b.ascents?.length || 0) - (a.ascents?.length || 0);
+        case 'most-viewed':
+          return (b.view_count || 0) - (a.view_count || 0);
         default:
           return 0;
       }

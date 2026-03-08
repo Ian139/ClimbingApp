@@ -1,44 +1,28 @@
+const fs = require('fs');
 const path = require('path');
 
-// ── Force mobile's node_modules for tailwindcss (v3) resolution ──
-// NativeWind needs tailwindcss v3 but the monorepo root has v4.
-// This patch ensures ALL requires of tailwindcss (including from
-// PostCSS/NativeWind internals) resolve to mobile's copy.
-const mobileNodeModules = path.resolve(__dirname, 'node_modules');
-
-// Set NODE_PATH so any child processes also prefer mobile's modules
-process.env.NODE_PATH = mobileNodeModules + ':' + (process.env.NODE_PATH || '');
-require('module').Module._initPaths();
-
+// Force NativeWind to resolve Tailwind v3 from apps/mobile
 const Module = require('module');
 const originalResolveFilename = Module._resolveFilename;
+const mobileNodeModules = path.resolve(__dirname, 'node_modules');
+
+// Ensure child processes (NativeWind CLI) resolve mobile deps
+process.env.NODE_PATH = mobileNodeModules + (process.env.NODE_PATH ? `:${process.env.NODE_PATH}` : '');
+Module._initPaths();
+const resolvePatchPath = path.resolve(__dirname, 'nativewind-resolve.js');
+if (!process.env.NODE_OPTIONS || !process.env.NODE_OPTIONS.includes(resolvePatchPath)) {
+  const existing = process.env.NODE_OPTIONS ? `${process.env.NODE_OPTIONS} ` : '';
+  process.env.NODE_OPTIONS = `${existing}--require ${resolvePatchPath}`.trim();
+}
 
 Module._resolveFilename = function (request, parent, isMain, options) {
-  // Force tailwindcss and postcss-related requires to mobile's node_modules
-  if (
-    request === 'tailwindcss' ||
-    request.startsWith('tailwindcss/') ||
-    request === 'postcss' ||
-    request.startsWith('postcss/')
-  ) {
-    try {
-      return originalResolveFilename.call(this, request, parent, isMain, {
-        ...options,
-        paths: [mobileNodeModules],
-      });
-    } catch { /* fall through */ }
+  if (request === 'tailwindcss' || request.startsWith('tailwindcss/')) {
+    return originalResolveFilename.call(this, request, parent, isMain, {
+      ...options,
+      paths: [mobileNodeModules],
+    });
   }
-  try {
-    return originalResolveFilename.call(this, request, parent, isMain, options);
-  } catch (err) {
-    if (err.code === 'MODULE_NOT_FOUND') {
-      return originalResolveFilename.call(this, request, parent, isMain, {
-        ...options,
-        paths: [mobileNodeModules, ...(options?.paths || [])],
-      });
-    }
-    throw err;
-  }
+  return originalResolveFilename.call(this, request, parent, isMain, options);
 };
 
 const { getDefaultConfig } = require('expo/metro-config');
@@ -58,6 +42,18 @@ config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
   path.resolve(monorepoRoot, 'node_modules'),
 ];
+
+const resolveFromProject = (name) => {
+  const localPath = path.resolve(projectRoot, 'node_modules', name);
+  if (fs.existsSync(localPath)) return localPath;
+  return path.resolve(monorepoRoot, 'node_modules', name);
+};
+
+config.resolver.extraNodeModules = {
+  ...config.resolver.extraNodeModules,
+  tailwindcss: resolveFromProject('tailwindcss'),
+  postcss: resolveFromProject('postcss'),
+};
 
 // Block root's react to prevent duplicate copies.
 // Block root's tailwindcss to prevent v4 from being picked up.

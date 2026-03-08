@@ -19,16 +19,20 @@ import {
   type HoldSize,
 } from '@climbset/shared';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BlurView } from 'expo-blur';
 import { nanoid } from 'nanoid/non-secure';
 import { useRoutesStore } from '../../lib/stores/routes-store';
 import { useWallsStore } from '../../lib/stores/walls-store';
+import { colors } from '../../lib/theme';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
 const HOLD_TYPES: HoldType[] = ['start', 'hand', 'foot', 'finish'];
 const HOLD_SIZE_PX: Record<HoldSize, number> = { small: 16, medium: 24, large: 36 };
 const HOLD_BORDER: Record<HoldSize, number> = { small: 2, medium: 3, large: 4 };
 
 export default function EditorScreen() {
+  const router = useRouter();
+  const { edit } = useLocalSearchParams<{ edit?: string }>();
+  const editRouteId = typeof edit === 'string' ? edit : null;
   const [holds, setHolds] = useState<Hold[]>([]);
   const [selectedType, setSelectedType] = useState<HoldType>('hand');
   const [selectedSize, setSelectedSize] = useState<HoldSize>('medium');
@@ -37,11 +41,40 @@ export default function EditorScreen() {
   const [routeName, setRouteName] = useState('');
   const [routeGrade, setRouteGrade] = useState('');
   const [undoStack, setUndoStack] = useState<Hold[][]>([]);
-  const { selectedWall, fetchWalls } = useWallsStore();
+  const { selectedWall, fetchWalls, setSelectedWall, getWallById } = useWallsStore();
+  const { routes, addRoute, updateRoute } = useRoutesStore();
+  const [editingRouteId, setEditingRouteId] = useState<string | null>(null);
+  const loadedRouteIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     fetchWalls();
   }, [fetchWalls]);
+
+  useEffect(() => {
+    if (!editRouteId) {
+      loadedRouteIdRef.current = null;
+      setEditingRouteId(null);
+      return;
+    }
+
+    if (loadedRouteIdRef.current === editRouteId) return;
+
+    const route = routes.find((r) => r.id === editRouteId);
+    if (!route) return;
+
+    loadedRouteIdRef.current = editRouteId;
+    setEditingRouteId(editRouteId);
+    setRouteName(route.name || '');
+    setRouteGrade(route.grade_v || '');
+    setHolds(route.holds || []);
+    setUndoStack([]);
+    setShowSequence((route.holds || []).some((h) => h.sequence != null));
+
+    if (route.wall_id) {
+      const wall = getWallById(route.wall_id);
+      if (wall) setSelectedWall(wall);
+    }
+  }, [editRouteId, routes, getWallById, setSelectedWall]);
 
   const canvasLayout = useRef({ width: 0, height: 0 });
 
@@ -104,11 +137,30 @@ export default function EditorScreen() {
     ]);
   };
 
-  const addRoute = useRoutesStore((s) => s.addRoute);
+  const isEditMode = !!editingRouteId;
 
   const handleSave = async () => {
-    const wallId = selectedWall?.id || 'default-wall';
-    const wallImageUrl = selectedWall?.image_url || undefined;
+    if (!selectedWall) {
+      Alert.alert('Select a wall', 'Please select a wall before saving a route.');
+      return;
+    }
+    const wallId = selectedWall.id;
+    const wallImageUrl = selectedWall.image_url || undefined;
+
+    if (isEditMode && editingRouteId) {
+      await updateRoute(editingRouteId, {
+        name: routeName.trim(),
+        grade_v: routeGrade || undefined,
+        holds,
+        wall_id: wallId,
+        wall_image_url: wallImageUrl,
+      });
+      Alert.alert('Updated!', `"${routeName}" updated with ${holds.length} holds.`);
+      setSaveModalVisible(false);
+      router.push('/(tabs)');
+      return;
+    }
+
     const route = {
       id: nanoid(),
       user_id: 'local-user',
@@ -144,19 +196,16 @@ export default function EditorScreen() {
   );
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
       {/* Header */}
-      <BlurView
-        intensity={40}
-        tint="systemChromeMaterialLight"
+      <View
         style={{
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
           paddingHorizontal: 16,
           paddingVertical: 8,
-          borderBottomWidth: 1,
-          borderBottomColor: 'rgba(230,221,208,0.6)',
+          backgroundColor: colors.card,
         }}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -165,9 +214,7 @@ export default function EditorScreen() {
               width: 40,
               height: 40,
               borderRadius: 12,
-              backgroundColor: undoStack.length > 0 ? 'rgba(255,251,247,0.95)' : 'rgba(255,251,247,0.6)',
-              borderWidth: 1,
-              borderColor: 'rgba(230,221,208,0.7)',
+              backgroundColor: undoStack.length > 0 ? `${colors.card}f2` : `${colors.card}99`,
               alignItems: 'center',
               justifyContent: 'center',
             }}
@@ -176,7 +223,7 @@ export default function EditorScreen() {
           >
             <Text
               style={{
-                color: undoStack.length > 0 ? '#3d2817' : '#8b766880',
+                color: undoStack.length > 0 ? colors.text : `${colors.muted}80`,
                 fontSize: 18,
               }}
             >
@@ -187,15 +234,13 @@ export default function EditorScreen() {
           {holds.length > 0 && (
             <View
               style={{
-                backgroundColor: 'rgba(255,251,247,0.95)',
+                backgroundColor: `${colors.card}f2`,
                 borderRadius: 10,
                 paddingHorizontal: 10,
                 paddingVertical: 4,
-                borderWidth: 1,
-                borderColor: 'rgba(230,221,208,0.7)',
               }}
             >
-              <Text style={{ color: '#8b7668', fontSize: 12, fontWeight: '500' }}>
+              <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '500' }}>
                 {holds.length} {holds.length === 1 ? 'hold' : 'holds'}
               </Text>
             </View>
@@ -207,8 +252,8 @@ export default function EditorScreen() {
             paddingHorizontal: 20,
             paddingVertical: 10,
             borderRadius: 14,
-            backgroundColor: holds.length > 0 ? '#8b6f47' : '#ede5d8',
-            shadowColor: holds.length > 0 ? '#8b6f47' : 'transparent',
+            backgroundColor: holds.length > 0 ? colors.primary : colors.border,
+            shadowColor: holds.length > 0 ? colors.primary : 'transparent',
             shadowOffset: { width: 0, height: 4 },
             shadowOpacity: 0.25,
             shadowRadius: 8,
@@ -216,11 +261,30 @@ export default function EditorScreen() {
           onPress={() => holds.length > 0 && setSaveModalVisible(true)}
           disabled={holds.length === 0}
         >
-          <Text style={{ fontWeight: '600', color: holds.length > 0 ? '#fffbf7' : '#8b766880' }}>
-            Save
+          <Text style={{ fontWeight: '600', color: holds.length > 0 ? colors.card : `${colors.muted}80` }}>
+            {isEditMode ? 'Update' : 'Save'}
           </Text>
         </Pressable>
-      </BlurView>
+      </View>
+
+      {!selectedWall && (
+        <View style={{
+          marginHorizontal: 16,
+          marginBottom: 10,
+          padding: 12,
+          borderRadius: 12,
+          backgroundColor: colors.card,
+          borderWidth: 1,
+          borderColor: colors.border,
+        }}>
+          <Text style={{ fontSize: 12, color: colors.muted }}>
+            No walls found in the database. Add one in Settings to start setting routes.
+          </Text>
+          <Pressable onPress={() => router.push('/settings')} style={{ marginTop: 8 }}>
+            <Text style={{ fontSize: 12, fontWeight: '600', color: colors.primary }}>Open Settings</Text>
+          </Pressable>
+        </View>
+      )}
 
       {/* Canvas */}
       <View
@@ -230,9 +294,7 @@ export default function EditorScreen() {
           marginBottom: 8,
           borderRadius: 16,
           overflow: 'hidden',
-          backgroundColor: '#fffbf7',
-          borderWidth: 1,
-          borderColor: '#e6ddd0',
+          backgroundColor: colors.card,
         }}
         onLayout={handleCanvasLayout}
         onStartShouldSetResponder={() => true}
@@ -241,9 +303,8 @@ export default function EditorScreen() {
         {selectedWall?.image_url ? (
           <Image
             source={{ uri: selectedWall.image_url }}
-            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%' }}
             resizeMode="cover"
-            pointerEvents="none"
           />
         ) : null}
         {/* Placeholder */}
@@ -264,7 +325,7 @@ export default function EditorScreen() {
                 width: 64,
                 height: 64,
                 borderRadius: 16,
-                backgroundColor: 'rgba(240,232,223,0.9)',
+                backgroundColor: `${colors.border}e6`,
                 alignItems: 'center',
                 justifyContent: 'center',
                 marginBottom: 12,
@@ -272,8 +333,8 @@ export default function EditorScreen() {
             >
               <Text style={{ fontSize: 28 }}>👆</Text>
             </View>
-            <Text style={{ color: '#8b7668', fontSize: 14, fontWeight: '500' }}>Tap to place holds</Text>
-            <Text style={{ color: '#8b766880', fontSize: 12, marginTop: 4 }}>Long-press a hold to remove it</Text>
+            <Text style={{ color: colors.muted, fontSize: 14, fontWeight: '500' }}>Tap to place holds</Text>
+            <Text style={{ color: `${colors.muted}80`, fontSize: 12, marginTop: 4 }}>Long-press a hold to remove it</Text>
           </View>
         )}
 
@@ -298,16 +359,14 @@ export default function EditorScreen() {
                   flexDirection: 'row',
                   alignItems: 'center',
                   gap: 4,
-                  backgroundColor: 'rgba(255,251,247,0.95)',
+                  backgroundColor: colors.card,
                   borderRadius: 8,
                   paddingHorizontal: 8,
                   paddingVertical: 2,
-                  borderWidth: 1,
-                  borderColor: '#e6ddd0',
                 }}
               >
                 <View style={{ backgroundColor: HOLD_COLORS[type as HoldType], width: 8, height: 8, borderRadius: 4 }} />
-                <Text style={{ color: '#3d2817', fontSize: 10, fontWeight: '500' }}>
+                <Text style={{ color: colors.text, fontSize: 10, fontWeight: '500' }}>
                   {count} {type}
                 </Text>
               </View>
@@ -346,7 +405,7 @@ export default function EditorScreen() {
               {showSequence && hold.sequence != null && (
                 <Text
                   style={{
-                    color: '#fff',
+                    color: colors.card,
                     fontSize: size * 0.35,
                     fontWeight: '700',
                     textShadowColor: 'rgba(0,0,0,0.6)',
@@ -363,14 +422,11 @@ export default function EditorScreen() {
       </View>
 
       {/* Bottom Controls */}
-      <BlurView
-        intensity={40}
-        tint="systemChromeMaterialLight"
+      <View
         style={{
           paddingHorizontal: 12,
           paddingBottom: 12,
-          borderTopWidth: 1,
-          borderTopColor: 'rgba(230,221,208,0.6)',
+          backgroundColor: colors.card,
         }}
       >
         {/* Hold Type Pills */}
@@ -389,9 +445,7 @@ export default function EditorScreen() {
                   gap: 6,
                   paddingVertical: 10,
                   borderRadius: 12,
-                  backgroundColor: isSelected ? color + '15' : 'rgba(255,251,247,0.9)',
-                  borderWidth: 1,
-                  borderColor: isSelected ? color + '40' : '#e6ddd0',
+                  backgroundColor: isSelected ? `${colors.primary}14` : colors.background,
                 }}
                 onPress={() => setSelectedType(type)}
               >
@@ -401,7 +455,7 @@ export default function EditorScreen() {
                     fontSize: 12,
                     fontWeight: '500',
                     textTransform: 'capitalize',
-                    color: isSelected ? '#3d2817' : '#8b7668',
+                    color: isSelected ? colors.primary : colors.muted,
                   }}
                 >
                   {type}
@@ -428,9 +482,7 @@ export default function EditorScreen() {
                     alignItems: 'center',
                     justifyContent: 'center',
                     borderRadius: 12,
-                    backgroundColor: isSelected ? 'rgba(255,251,247,0.95)' : 'rgba(255,251,247,0.8)',
-                    borderWidth: 1,
-                    borderColor: isSelected ? '#e6ddd0' : 'transparent',
+                    backgroundColor: isSelected ? `${colors.primary}14` : colors.background,
                   }}
                   onPress={() => setSelectedSize(size)}
                 >
@@ -440,14 +492,14 @@ export default function EditorScreen() {
                       height: dotSize,
                       borderRadius: dotSize / 2,
                       borderWidth: bw,
-                      borderColor: HOLD_COLORS[selectedType],
-                      backgroundColor: isSelected ? HOLD_COLORS[selectedType] + '33' : 'transparent',
+                      borderColor: colors.primary,
+                      backgroundColor: isSelected ? `${colors.primary}33` : 'transparent',
                     }}
                   />
                 </Pressable>
               );
             })}
-            <Text style={{ color: '#8b7668', fontSize: 10, marginLeft: 4, textTransform: 'capitalize' }}>{selectedSize}</Text>
+            <Text style={{ color: colors.muted, fontSize: 10, marginLeft: 4, textTransform: 'capitalize' }}>{selectedSize}</Text>
           </View>
 
           {/* Action buttons */}
@@ -459,13 +511,11 @@ export default function EditorScreen() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 borderRadius: 12,
-                backgroundColor: showSequence ? 'rgba(255,251,247,0.95)' : 'rgba(255,251,247,0.8)',
-                borderWidth: 1,
-                borderColor: showSequence ? '#e6ddd0' : 'transparent',
+                backgroundColor: showSequence ? `${colors.primary}14` : colors.background,
               }}
               onPress={() => setShowSequence((v) => !v)}
             >
-              <Text style={{ fontWeight: '700', color: showSequence ? '#3d2817' : '#8b7668' }}>#</Text>
+              <Text style={{ fontWeight: '700', color: showSequence ? colors.primary : colors.muted }}>#</Text>
             </Pressable>
             <Pressable
               style={{
@@ -474,18 +524,16 @@ export default function EditorScreen() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 borderRadius: 12,
-                backgroundColor: 'rgba(255,251,247,0.8)',
-                borderWidth: 1,
-                borderColor: 'transparent',
+                backgroundColor: colors.background,
               }}
               onPress={clearHolds}
               disabled={holds.length === 0}
             >
-              <Text style={{ color: holds.length > 0 ? '#8b7668' : '#8b766840' }}>🗑</Text>
+              <Text style={{ color: holds.length > 0 ? colors.muted : `${colors.muted}40` }}>🗑</Text>
             </Pressable>
           </View>
         </View>
-      </BlurView>
+      </View>
 
       {/* Save Modal */}
       <Modal
@@ -494,44 +542,44 @@ export default function EditorScreen() {
         presentationStyle="pageSheet"
         onRequestClose={() => setSaveModalVisible(false)}
       >
-        <View style={{ flex: 1, backgroundColor: '#f5f1e8' }}>
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
           <SafeAreaView style={{ flex: 1 }} edges={['top']}>
             {/* Modal Header */}
-            <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
               <Pressable onPress={() => setSaveModalVisible(false)}>
-                <Text className="text-muted-foreground text-base">Cancel</Text>
+                <Text style={{ fontSize: 16, color: colors.muted }}>Cancel</Text>
               </Pressable>
-              <Text className="text-base font-semibold text-foreground">Save Route</Text>
+              <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text }}>{isEditMode ? 'Update Route' : 'Save Route'}</Text>
               <Pressable onPress={handleSave} disabled={!routeName.trim()}>
-                <Text style={{ fontSize: 16, fontWeight: '600', color: routeName.trim() ? '#8b6f47' : '#e6ddd0' }}>
-                  Save
+                <Text style={{ fontSize: 16, fontWeight: '600', color: routeName.trim() ? colors.primary : colors.border }}>
+                  {isEditMode ? 'Update' : 'Save'}
                 </Text>
               </Pressable>
             </View>
 
             <ScrollView style={{ flex: 1, paddingHorizontal: 16, paddingTop: 20 }}>
               {/* Route Name */}
-              <Text className="text-sm font-medium text-foreground mb-1.5">Route Name</Text>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 6 }}>Route Name</Text>
               <TextInput
                 style={{
-                  backgroundColor: '#ede5d8',
+                  backgroundColor: colors.border,
                   borderRadius: 12,
                   paddingHorizontal: 16,
                   paddingVertical: 12,
                   fontSize: 16,
-                  color: '#3d2817',
+                  color: colors.text,
                   marginBottom: 20,
                 }}
                 placeholder="e.g., Crimpy Corner"
-                placeholderTextColor="#8b7668"
+                placeholderTextColor={colors.muted}
                 value={routeName}
                 onChangeText={setRouteName}
                 autoFocus
               />
 
               {/* Grade */}
-              <Text className="text-sm font-medium text-foreground mb-1">Grade (Your Suggestion)</Text>
-              <Text style={{ fontSize: 12, color: '#8b7668', marginBottom: 8 }}>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 4 }}>Grade (Your Suggestion)</Text>
+              <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 8 }}>
                 This is your suggested grade as the setter
               </Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
@@ -541,14 +589,14 @@ export default function EditorScreen() {
                       paddingHorizontal: 14,
                       paddingVertical: 8,
                       borderRadius: 8,
-                      backgroundColor: !routeGrade ? '#3d2817' : '#ede5d8',
+                      backgroundColor: !routeGrade ? colors.text : colors.border,
                     }}
                     onPress={() => setRouteGrade('')}
                   >
                     <Text
                       style={{
                         fontSize: 14,
-                        color: !routeGrade ? '#fffbf7' : '#8b7668',
+                        color: !routeGrade ? colors.card : colors.muted,
                         fontWeight: !routeGrade ? '500' : '400',
                       }}
                     >
@@ -562,14 +610,14 @@ export default function EditorScreen() {
                         paddingHorizontal: 14,
                         paddingVertical: 8,
                         borderRadius: 8,
-                        backgroundColor: routeGrade === g ? '#3d2817' : '#ede5d8',
+                        backgroundColor: routeGrade === g ? colors.text : colors.border,
                       }}
                       onPress={() => setRouteGrade(g)}
                     >
                       <Text
                         style={{
                           fontSize: 14,
-                          color: routeGrade === g ? '#fffbf7' : '#8b7668',
+                          color: routeGrade === g ? colors.card : colors.muted,
                           fontWeight: routeGrade === g ? '500' : '400',
                         }}
                       >
@@ -581,8 +629,8 @@ export default function EditorScreen() {
               </ScrollView>
 
               {/* Hold Summary */}
-              <View style={{ backgroundColor: '#fffbf7', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#e6ddd0' }}>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: '#3d2817', marginBottom: 12 }}>
+              <View style={{ backgroundColor: colors.card, borderRadius: 16, padding: 16 }}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text, marginBottom: 12 }}>
                   Hold Summary — {holds.length} total
                 </Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16 }}>
@@ -591,7 +639,7 @@ export default function EditorScreen() {
                     return (
                       <View key={type} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                         <View style={{ backgroundColor: HOLD_COLORS[type], width: 14, height: 14, borderRadius: 7 }} />
-                        <Text style={{ fontSize: 14, color: '#8b7668' }}>
+                        <Text style={{ fontSize: 14, color: colors.muted }}>
                           <Text style={{ fontWeight: '600' }}>{count}</Text> {type}
                         </Text>
                       </View>

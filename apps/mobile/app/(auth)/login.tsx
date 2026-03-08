@@ -3,6 +3,7 @@ import { View, Text, TextInput, Pressable, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useUserStore } from '../../lib/stores/user-store';
+import { colors } from '../../lib/theme';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -24,66 +25,66 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
       <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
-        <View className="px-5 pt-4">
+        <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
           <Pressable
-            className="h-10 w-10 items-center justify-center rounded-xl border border-border bg-card"
+            style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: colors.card }}
             onPress={() => router.back()}
           >
-            <Text className="text-muted-foreground text-lg">‹</Text>
+            <Text style={{ color: colors.muted, fontSize: 18 }}>‹</Text>
           </Pressable>
         </View>
 
-        <View className="px-6 pt-6">
-          <View className="items-center mb-6">
-            <View className="h-14 w-14 items-center justify-center rounded-2xl bg-secondary/10">
+        <View style={{ paddingHorizontal: 24, paddingTop: 24 }}>
+          <View style={{ alignItems: 'center', marginBottom: 24 }}>
+            <View style={{ width: 56, height: 56, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: `${colors.secondary}1a` }}>
               <Text className="text-2xl">🧗</Text>
             </View>
-            <Text className="text-2xl font-semibold text-foreground mt-4">Welcome back</Text>
-            <Text className="text-sm text-muted-foreground mt-1">Log in to your ClimbSet account</Text>
+            <Text style={{ fontSize: 24, fontWeight: '600', color: colors.text, marginTop: 16 }}>Welcome back</Text>
+            <Text style={{ fontSize: 13, color: colors.muted, marginTop: 4 }}>Log in to your ClimbSet account</Text>
           </View>
 
-          <View className="rounded-2xl border border-border bg-card px-4 py-5">
-            <Text className="text-sm font-medium text-foreground mb-2">Email</Text>
+          <View style={{ borderRadius: 16, backgroundColor: colors.card, paddingHorizontal: 16, paddingVertical: 20 }}>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Email</Text>
             <TextInput
-              className="border border-border bg-muted rounded-xl px-4 py-3 text-foreground mb-4"
+              style={{ backgroundColor: colors.background, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, color: colors.text, marginBottom: 16 }}
               placeholder="you@example.com"
-              placeholderTextColor="#8b7668"
+              placeholderTextColor={colors.muted}
               value={email}
               onChangeText={setEmail}
               autoCapitalize="none"
               keyboardType="email-address"
             />
 
-            <Text className="text-sm font-medium text-foreground mb-2">Password</Text>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Password</Text>
             <TextInput
-              className="border border-border bg-muted rounded-xl px-4 py-3 text-foreground"
+              style={{ backgroundColor: colors.background, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, color: colors.text }}
               placeholder="Enter your password"
-              placeholderTextColor="#8b7668"
+              placeholderTextColor={colors.muted}
               value={password}
               onChangeText={setPassword}
               secureTextEntry
             />
 
             {error ? (
-              <Text className="text-sm text-destructive mt-3">{error}</Text>
+              <Text style={{ fontSize: 13, color: colors.destructive, marginTop: 12 }}>{error}</Text>
             ) : null}
 
             <Pressable
-              className="bg-primary rounded-xl py-3 items-center mt-5"
+              style={{ backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginTop: 20, opacity: isLoading ? 0.7 : 1 }}
               onPress={handleLogin}
               disabled={isLoading}
             >
-              <Text className="text-primary-foreground font-semibold text-base">
+              <Text style={{ color: colors.card, fontWeight: '600', fontSize: 16 }}>
                 {isLoading ? 'Logging in...' : 'Log In'}
               </Text>
             </Pressable>
           </View>
 
-          <Pressable onPress={() => router.push('/(auth)/signup')} className="mt-5">
-            <Text className="text-center text-sm text-muted-foreground">
-              Don&apos;t have an account? <Text className="text-primary font-medium">Sign Up</Text>
+          <Pressable onPress={() => router.push('/(auth)/signup')} style={{ marginTop: 20 }}>
+            <Text style={{ textAlign: 'center', fontSize: 13, color: colors.muted }}>
+              Don&apos;t have an account? <Text style={{ color: colors.primary, fontWeight: '600' }}>Sign Up</Text>
             </Text>
           </Pressable>
         </View>

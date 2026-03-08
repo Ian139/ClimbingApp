@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useEffect } from 'react';
+import { useMemo, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useUserStore } from '@/lib/stores/user-store';
 import { useRoutesStore } from '@/lib/stores/routes-store';
 import { cn } from '@/lib/utils';
@@ -9,13 +10,29 @@ import { useIsClient } from '@/lib/hooks/useIsClient';
 import { gradeToNumber, calculateDisplayGrade } from '@/lib/utils/grades';
 
 export default function ProfilePage() {
-  const { user, displayName, userId, isAuthenticated } = useUserStore();
+  const { user, displayName, userId, isAuthenticated, profile, syncProfile, uploadAvatar } = useUserStore();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const { routes, fetchRoutes } = useRoutesStore();
   const isClient = useIsClient();
 
   useEffect(() => {
     fetchRoutes();
   }, [fetchRoutes]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      syncProfile();
+    }
+  }, [isAuthenticated, syncProfile]);
+
+  const handleAvatarSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingAvatar(true);
+    await uploadAvatar(file);
+    setIsUploadingAvatar(false);
+  };
 
   // Calculate user stats
   const stats = useMemo(() => {
@@ -149,10 +166,20 @@ export default function ProfilePage() {
       <main className="px-6 space-y-8">
         {/* User Info */}
         <section className="flex items-center gap-4">
-          <div className="size-16 rounded-full bg-primary/10 flex items-center justify-center">
-            <span className="text-2xl font-bold text-primary">
-              {displayName.charAt(0).toUpperCase()}
-            </span>
+          <div className="size-16 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden border border-border/60">
+            {profile?.avatar_url ? (
+              <Image
+                src={profile.avatar_url}
+                alt={displayName}
+                width={64}
+                height={64}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <span className="text-2xl font-bold text-primary">
+                {displayName.charAt(0).toUpperCase()}
+              </span>
+            )}
           </div>
 
           <div className="flex-1">
@@ -160,6 +187,9 @@ export default function ProfilePage() {
             <p className="text-sm text-muted-foreground">
               {isAuthenticated ? user?.email : 'Guest climber'}
             </p>
+            {profile?.username && (
+              <p className="text-xs text-muted-foreground mt-0.5">@{profile.username}</p>
+            )}
             {user?.createdAt && (
               <p className="text-xs text-muted-foreground mt-0.5">
                 Member since {new Date(user.createdAt).toLocaleDateString('en-US', {
@@ -167,6 +197,26 @@ export default function ProfilePage() {
                   year: 'numeric',
                 })}
               </p>
+            )}
+            {profile?.bio && (
+              <p className="text-xs text-muted-foreground mt-1">{profile.bio}</p>
+            )}
+            {isAuthenticated && (
+              <div className="mt-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleAvatarSelect}
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="text-xs font-medium text-primary hover:underline"
+                >
+                  {isUploadingAvatar ? 'Uploading...' : 'Change avatar'}
+                </button>
+              </div>
             )}
           </div>
         </section>

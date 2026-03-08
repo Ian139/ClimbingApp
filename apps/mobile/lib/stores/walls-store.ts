@@ -1,6 +1,4 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../supabase';
 import type { Wall } from '@climbset/shared';
 
@@ -30,119 +28,102 @@ interface WallsState {
 }
 
 export const useWallsStore = create<WallsState>()(
-  persist(
-    (set, get) => ({
-      walls: [DEFAULT_WALL],
-      selectedWall: DEFAULT_WALL,
-      isLoading: false,
+  (set, get) => ({
+    walls: [],
+    selectedWall: null,
+    isLoading: false,
 
-      setSelectedWall: (wall) => set({ selectedWall: wall }),
+    setSelectedWall: (wall) => set({ selectedWall: wall }),
 
-      fetchWalls: async () => {
-        set({ isLoading: true });
-        try {
-          const { data, error } = await supabase
-            .from('walls')
-            .select('*')
-            .eq('is_public', true)
-            .order('created_at', { ascending: false });
+    fetchWalls: async () => {
+      set({ isLoading: true });
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        const userId = user?.id;
 
-          if (error) {
-            set({ isLoading: false });
-            return;
-          }
+        let query = supabase
+          .from('walls')
+          .select('*')
+          .order('created_at', { ascending: false });
 
-          const localWalls = get().walls.filter(
-            (w) => w.id === 'default-wall' || w.user_id === 'local-user'
-          );
+        if (userId) {
+          query = query.or(`is_public.eq.true,user_id.eq.${userId}`);
+        } else {
+          query = query.eq('is_public', true);
+        }
 
-          const mergedWalls = [
-            ...localWalls,
-            ...(data || []).filter((rw) => !localWalls.some((lw) => lw.id === rw.id)),
-          ];
-          const currentSelected = get().selectedWall;
-          const firstRemote = (data || [])[0];
-          set({
-            walls: mergedWalls,
-            selectedWall:
-              currentSelected?.id === 'default-wall' && firstRemote
-                ? firstRemote
-                : currentSelected,
-            isLoading: false,
-          });
-        } catch {
+        const { data, error } = await query;
+
+        if (error) {
           set({ isLoading: false });
+          return;
         }
-      },
 
-      addWall: async (wall) => {
-        set((state) => ({ walls: [...state.walls, { ...wall, is_public: true }] }));
+        const currentSelected = get().selectedWall;
+        const nextSelected = currentSelected
+          ? data?.find((w) => w.id === currentSelected.id) || data?.[0] || null
+          : data?.[0] || null;
 
-        try {
-          const { data: { user } } = await supabase.auth.getUser();
-          await supabase.from('walls').insert({
-            id: wall.id,
-            user_id: user?.id || null,
-            name: wall.name,
-            description: wall.description,
-            image_url: wall.image_url,
-            image_width: wall.image_width,
-            image_height: wall.image_height,
-            is_public: true,
-          });
-        } catch {
-          // offline
+        set({
+          walls: data || [],
+          selectedWall: nextSelected,
+          isLoading: false,
+        });
+      } catch {
+        set({ isLoading: false });
+      }
+    },
+
+    addWall: async (wall) => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        const { error } = await supabase.from('walls').insert({
+          id: wall.id,
+          user_id: user?.id || null,
+          name: wall.name,
+          description: wall.description,
+          image_url: wall.image_url,
+          image_width: wall.image_width,
+          image_height: wall.image_height,
+          is_public: true,
+        });
+        if (error) throw error;
+        await get().fetchWalls();
+      } catch {
+        // offline
+      }
+    },
+
+    updateWall: async (id, updates) => {
+      try {
+        const { error } = await supabase.from('walls').update({
+          ...updates,
+          updated_at: new Date().toISOString(),
+        }).eq('id', id);
+        if (error) throw error;
+        await get().fetchWalls();
+      } catch {
+        // offline
+      }
+    },
+
+    deleteWall: async (id) => {
+      try {
+        const { error } = await supabase.from('walls').delete().eq('id', id);
+        if (error) throw error;
+        const { data } = await supabase.storage
+          .from('walls')
+          .list(id, { limit: 100, offset: 0, sortBy: { column: 'name', order: 'asc' } });
+        if (data && data.length > 0) {
+          const paths = data.map((item) => `${id}/${item.name}`);
+          await supabase.storage.from('walls').remove(paths);
         }
-      },
+        await get().fetchWalls();
+      } catch {
+        // offline
+      }
+    },
 
-      updateWall: async (id, updates) => {
-        set((state) => ({
-          walls: state.walls.map((w) =>
-            w.id === id ? { ...w, ...updates, updated_at: new Date().toISOString() } : w
-          ),
-        }));
-
-        try {
-          const wall = get().walls.find((w) => w.id === id);
-          if (wall && wall.user_id !== 'local-user' && wall.id !== 'default-wall') {
-            await supabase.from('walls').update(updates).eq('id', id);
-          }
-        } catch {
-          // offline
-        }
-      },
-
-      deleteWall: async (id) => {
-        const wall = get().walls.find((w) => w.id === id);
-        set((state) => ({
-          walls: state.walls.filter((w) => w.id !== id && w.id !== 'default-wall'),
-        }));
-
-        try {
-          if (wall && wall.user_id !== 'local-user' && wall.id !== 'default-wall') {
-            await supabase.from('walls').delete().eq('id', id);
-            const { data } = await supabase.storage
-              .from('walls')
-              .list(id, { limit: 100, offset: 0, sortBy: { column: 'name', order: 'asc' } });
-            if (data && data.length > 0) {
-              const paths = data.map((item) => `${id}/${item.name}`);
-              await supabase.storage.from('walls').remove(paths);
-            }
-          }
-        } catch {
-          // offline
-        }
-      },
-
-      getWallById: (id) => get().walls.find((w) => w.id === id),
-    }),
-    {
-      name: 'climbset-walls',
-      storage: createJSONStorage(() => AsyncStorage),
-      partialize: (state) => ({
-        walls: state.walls,
-        selectedWall: state.selectedWall,
-      }),
-    }
-  )
+    getWallById: (id) => get().walls.find((w) => w.id === id),
+  })
 );

@@ -11,8 +11,8 @@ import {
   ScrollView,
   Image,
   Share,
+  Alert,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { nanoid } from 'nanoid/non-secure';
@@ -26,6 +26,7 @@ import { useRoutesStore } from '../../lib/stores/routes-store';
 import { useWallsStore } from '../../lib/stores/walls-store';
 import { useUserStore } from '../../lib/stores/user-store';
 import { supabase } from '../../lib/supabase';
+import { colors } from '../../lib/theme';
 
 function HoldDots({ holds }: { holds: Hold[] }) {
   const typeCounts: Record<string, number> = {};
@@ -35,7 +36,7 @@ function HoldDots({ holds }: { holds: Hold[] }) {
       {Object.entries(typeCounts).map(([type, count]) => (
         <View key={type} className="flex-row items-center gap-0.5">
           <View style={{ backgroundColor: HOLD_COLORS[type as keyof typeof HOLD_COLORS], width: 6, height: 6, borderRadius: 3 }} />
-          <Text style={{ fontSize: 10, color: '#8b7668' }}>{count}</Text>
+          <Text style={{ fontSize: 10, color: colors.muted }}>{count}</Text>
         </View>
       ))}
     </View>
@@ -44,58 +45,65 @@ function HoldDots({ holds }: { holds: Hold[] }) {
 
 function RouteRow({
   route,
-  isLast,
   wallName,
+  wallImage,
   onPress,
 }: {
   route: Route;
-  isLast: boolean;
   wallName?: string;
+  wallImage?: string;
   onPress: () => void;
 }) {
   const displayGrade = calculateDisplayGrade(route.grade_v, route.ascents);
   const sendCount = route.ascents?.length || 0;
   const timeAgo = getTimeAgo(route.created_at);
+  const meta = `${route.user_name || 'Setter'}${wallName ? ` • ${wallName}` : ''}`;
+  const metrics = `${route.like_count || 0} likes${sendCount > 0 ? ` • ${sendCount} ${sendCount === 1 ? 'send' : 'sends'}` : ''}`;
 
   return (
     <Pressable
       style={{
         paddingVertical: 14,
-        paddingHorizontal: 16,
-        borderBottomWidth: isLast ? 0 : 1,
-        borderBottomColor: 'rgba(230, 221, 208, 0.3)',
+        paddingHorizontal: 4,
+        borderRadius: 16,
+        backgroundColor: 'transparent',
+        borderBottomWidth: 1,
+        borderBottomColor: colors.border,
       }}
       className="active:opacity-60"
       onPress={onPress}
     >
-      <View className="flex-row items-center">
-        {displayGrade && (
-          <Text style={{ fontSize: 18, fontWeight: '700', color: '#3d2817', width: 48 }}>
-            {displayGrade}
-          </Text>
-        )}
-        <View className="flex-1">
-          <Text style={{ fontSize: 16, fontWeight: '500', color: '#3d2817' }} numberOfLines={1}>
-            {route.name}
-          </Text>
-          <View className="flex-row items-center gap-2 mt-1">
-            {route.user_name && (
-              <Text style={{ fontSize: 13, color: '#8b7668' }}>{route.user_name}</Text>
-            )}
-            {wallName && (
-              <Text style={{ fontSize: 12, color: '#8b7668' }}>• {wallName}</Text>
-            )}
-            <HoldDots holds={route.holds} />
-          </View>
-        </View>
-        <View className="items-end ml-3">
-          <Text style={{ fontSize: 12, color: '#8b7668' }}>♥ {route.like_count || 0}</Text>
-          {sendCount > 0 && (
-            <Text style={{ fontSize: 11, color: '#8b766880', marginTop: 2 }}>
-              {sendCount} {sendCount === 1 ? 'send' : 'sends'}
-            </Text>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+        <View style={{ width: 56, height: 56, borderRadius: 14, overflow: 'hidden', marginRight: 12, backgroundColor: colors.border }}>
+          {wallImage ? (
+            <Image source={{ uri: wallImage }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+          ) : (
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ color: colors.muted, fontSize: 10 }}>Wall</Text>
+            </View>
           )}
-          <Text style={{ fontSize: 10, color: '#8b766850', marginTop: 2 }}>{timeAgo}</Text>
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={{ flex: 1, fontSize: 15, fontWeight: '600', color: colors.text }} numberOfLines={1}>
+              {route.name}
+            </Text>
+            {displayGrade && (
+              <View style={{ marginLeft: 8, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, backgroundColor: `${colors.primary}1a` }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: colors.primary }}>{displayGrade}</Text>
+              </View>
+            )}
+          </View>
+          <Text style={{ fontSize: 12, color: colors.muted, marginTop: 4 }} numberOfLines={1}>
+            {meta}
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+            <HoldDots holds={route.holds} />
+            <Text style={{ fontSize: 11, color: `${colors.muted}80` }} numberOfLines={1}>
+              {metrics}
+            </Text>
+          </View>
+          <Text style={{ fontSize: 10, color: `${colors.muted}60`, marginTop: 6 }}>{timeAgo}</Text>
         </View>
       </View>
     </Pressable>
@@ -120,10 +128,12 @@ export default function HomeScreen() {
   const {
     routes,
     isLoading,
+    isOfflineMode,
     fetchRoutes,
     toggleLike,
     addAscent,
     updateRoute,
+    deleteRoute,
     addComment,
     updateComment,
     deleteComment,
@@ -131,8 +141,11 @@ export default function HomeScreen() {
   } = useRoutesStore();
   const { fetchWalls, getWallById, walls, selectedWall, setSelectedWall } = useWallsStore();
   const { user, profile } = useUserStore();
-  const [sortBy, setSortBy] = useState<'newest' | 'most-liked' | 'most-climbed'>('newest');
-  const [showWallPicker, setShowWallPicker] = useState(false);
+  const [sortBy, setSortBy] = useState<'newest' | 'highest-rated' | 'most-liked' | 'most-climbed'>('newest');
+  const [minGrade, setMinGrade] = useState<number | null>(null);
+  const [maxGrade, setMaxGrade] = useState<number | null>(null);
+  const [setterFilter, setSetterFilter] = useState<string>('all');
+  const [activeFilterMenu, setActiveFilterMenu] = useState<null | 'wall' | 'sort' | 'minGrade' | 'maxGrade' | 'setter'>(null);
   const [routeToViewId, setRouteToViewId] = useState<string | null>(null);
   const [showLogModal, setShowLogModal] = useState(false);
   const [logRating, setLogRating] = useState<number | null>(null);
@@ -157,22 +170,53 @@ export default function HomeScreen() {
   };
 
   const activeWallId = selectedWall?.id || 'all-walls';
+  const availableSetters = useMemo(() => {
+    const names = Array.from(new Set(routes.map((r) => (r.user_name || '').trim()).filter(Boolean)));
+    return names.sort((a, b) => a.localeCompare(b));
+  }, [routes]);
+  const gradeOptions = useMemo(() => [null, ...Array.from({ length: 13 }, (_, i) => i)], []);
+
+  const parseGradeNumber = (grade?: string | null) => {
+    if (!grade) return null;
+    const match = grade.toUpperCase().match(/^V(\d+)/);
+    if (!match) return null;
+    return Number.parseInt(match[1], 10);
+  };
+
   const scopedRoutes = useMemo(() => {
     if (activeWallId === 'all-walls') return routes;
     return routes.filter((r) => r.wall_id === activeWallId);
   }, [routes, activeWallId]);
 
   const filteredRoutes = useMemo(() => {
-    if (!searchQuery.trim()) return scopedRoutes;
     const q = searchQuery.toLowerCase();
-    return scopedRoutes.filter(
-      (r) => r.name.toLowerCase().includes(q) || r.grade_v?.toLowerCase().includes(q) || r.user_name?.toLowerCase().includes(q)
-    );
-  }, [scopedRoutes, searchQuery]);
+    return scopedRoutes.filter((r) => {
+      if (searchQuery.trim()) {
+        const matchesSearch = r.name.toLowerCase().includes(q)
+          || r.grade_v?.toLowerCase().includes(q)
+          || r.user_name?.toLowerCase().includes(q);
+        if (!matchesSearch) return false;
+      }
+
+      const gradeNum = parseGradeNumber(r.grade_v);
+      if (minGrade !== null && (gradeNum === null || gradeNum < minGrade)) return false;
+      if (maxGrade !== null && (gradeNum === null || gradeNum > maxGrade)) return false;
+      if (setterFilter !== 'all' && r.user_name !== setterFilter) return false;
+      return true;
+    });
+  }, [scopedRoutes, searchQuery, minGrade, maxGrade, setterFilter]);
 
   const sortedRoutes = useMemo(() => {
     const next = [...filteredRoutes];
+    const averageRating = (route: Route) => {
+      const ratings = (route.ascents || [])
+        .map((a) => a.rating)
+        .filter((r): r is number => typeof r === 'number');
+      if (ratings.length === 0) return 0;
+      return ratings.reduce((sum, r) => sum + r, 0) / ratings.length;
+    };
     next.sort((a, b) => {
+      if (sortBy === 'highest-rated') return averageRating(b) - averageRating(a);
       if (sortBy === 'most-liked') return (b.like_count || 0) - (a.like_count || 0);
       if (sortBy === 'most-climbed') return (b.ascents?.length || 0) - (a.ascents?.length || 0);
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
@@ -264,96 +308,362 @@ export default function HomeScreen() {
     setEditingIsBeta(false);
   };
 
+  const canEditRoute = routeToView
+    ? routeToView.user_id === (user?.id || 'local-user') || routeToView.user_id === 'local-user'
+    : false;
+
   const renderStars = (value: number) => (
     <View style={{ flexDirection: 'row', gap: 2 }}>
       {[1, 2, 3, 4, 5].map((n) => (
-        <Text key={n} style={{ color: n <= value ? '#f59e0b' : '#e6ddd0', fontSize: 16 }}>★</Text>
+        <Text key={n} style={{ color: n <= value ? colors.accent : colors.border, fontSize: 16 }}>★</Text>
       ))}
     </View>
   );
 
   return (
-    <View className="flex-1 bg-background">
-      {/* Frosted search bar */}
-      <BlurView intensity={80} tint="systemChromeMaterialLight" style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: 8 }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
+      <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Text style={{ fontSize: 20, fontWeight: '700', color: colors.text }}>Routes</Text>
+          <Text style={{ fontSize: 12, color: colors.muted }}>
+            {filteredRoutes.length} {filteredRoutes.length === 1 ? 'route' : 'routes'}
+          </Text>
+        </View>
+
+        {isOfflineMode && (
+          <View style={{
+            marginTop: 10,
+            paddingHorizontal: 12,
+            paddingVertical: 8,
+            borderRadius: 12,
+            backgroundColor: `${colors.secondary}1a`,
+            borderWidth: 1,
+            borderColor: `${colors.secondary}33`,
+          }}>
+            <Text style={{ fontSize: 12, color: colors.muted }}>
+              Local-only mode. Cloud sync is unavailable.
+            </Text>
+          </View>
+        )}
+
         <View style={{
-          backgroundColor: 'rgba(255,251,247,0.6)',
+          marginTop: 12,
+          backgroundColor: colors.card,
           borderRadius: 14,
           paddingHorizontal: 12,
-          paddingVertical: 8,
+          paddingVertical: 10,
+          borderWidth: 1,
+          borderColor: colors.border,
           flexDirection: 'row',
           alignItems: 'center',
         }}>
-          <Text style={{ color: '#8b7668', marginRight: 8, fontSize: 14 }}>🔍</Text>
+          <Text style={{ color: colors.muted, marginRight: 8, fontSize: 14 }}>🔍</Text>
           <TextInput
-            style={{ flex: 1, fontSize: 14, color: '#3d2817' }}
+            style={{ flex: 1, fontSize: 14, color: colors.text }}
             placeholder="Search routes, setters..."
-            placeholderTextColor="#8b766880"
+            placeholderTextColor={`${colors.muted}80`}
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
           {searchQuery.length > 0 && (
             <Pressable onPress={() => setSearchQuery('')}>
-              <Text style={{ color: '#8b7668', fontSize: 14 }}>✕</Text>
+              <Text style={{ color: colors.muted, fontSize: 14 }}>✕</Text>
             </Pressable>
           )}
         </View>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, paddingHorizontal: 4 }}>
-          <Text style={{ fontSize: 12, color: '#8b7668' }}>
-            {filteredRoutes.length} {filteredRoutes.length === 1 ? 'route' : 'routes'}
-          </Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <Pressable
-              onPress={() => {
-                setSortBy((prev) => (prev === 'newest' ? 'most-liked' : prev === 'most-liked' ? 'most-climbed' : 'newest'));
-              }}
-            >
-              <Text style={{ fontSize: 12, color: '#8b6f47', fontWeight: '500' }}>
-                Sort: {sortBy === 'newest' ? 'Newest' : sortBy === 'most-liked' ? 'Most Liked' : 'Most Climbed'} ▾
-              </Text>
-            </Pressable>
-            <Pressable onPress={() => setShowWallPicker(true)}>
-              <Text style={{ fontSize: 12, color: '#8b6f47', fontWeight: '500' }}>
-                {selectedWall?.name || 'All Walls'} ▾
-              </Text>
-            </Pressable>
-          </View>
+
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 }}>
+          <Pressable
+            onPress={() => setActiveFilterMenu((prev) => (prev === 'sort' ? null : 'sort'))}
+            style={{
+              paddingHorizontal: 10,
+              paddingVertical: 6,
+              borderRadius: 10,
+              backgroundColor: colors.card,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            <Text style={{ fontSize: 12, color: colors.text, fontWeight: '600' }} numberOfLines={1}>
+              Sort: {
+                sortBy === 'newest'
+                  ? 'Newest'
+                  : sortBy === 'highest-rated'
+                    ? 'Highest Rated'
+                    : sortBy === 'most-liked'
+                      ? 'Most Liked'
+                      : 'Most Climbed'
+              }
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setActiveFilterMenu((prev) => (prev === 'wall' ? null : 'wall'))}
+            style={{
+              flex: 1,
+              paddingHorizontal: 10,
+              paddingVertical: 6,
+              borderRadius: 10,
+              backgroundColor: colors.card,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            <Text style={{ fontSize: 12, color: colors.text, fontWeight: '600' }} numberOfLines={1}>
+              Wall: {selectedWall?.name || 'All Walls'}
+            </Text>
+          </Pressable>
         </View>
-      </BlurView>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingTop: 10 }}>
+          <Pressable
+            style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}
+            onPress={() => setActiveFilterMenu((prev) => (prev === 'minGrade' ? null : 'minGrade'))}
+          >
+            <Text style={{ fontSize: 12, color: colors.text, fontWeight: '500' }}>
+              Min: {minGrade === null ? 'Any' : `V${minGrade}`}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}
+            onPress={() => setActiveFilterMenu((prev) => (prev === 'maxGrade' ? null : 'maxGrade'))}
+          >
+            <Text style={{ fontSize: 12, color: colors.text, fontWeight: '500' }}>
+              Max: {maxGrade === null ? 'Any' : `V${maxGrade}`}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}
+            onPress={() => setActiveFilterMenu((prev) => (prev === 'setter' ? null : 'setter'))}
+          >
+            <Text style={{ fontSize: 12, color: colors.text, fontWeight: '500' }} numberOfLines={1}>
+              Setter: {setterFilter === 'all' ? 'All' : setterFilter}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: `${colors.primary}10`, borderWidth: 1, borderColor: `${colors.primary}33` }}
+            onPress={() => {
+              setMinGrade(null);
+              setMaxGrade(null);
+              setSetterFilter('all');
+              setActiveFilterMenu(null);
+            }}
+          >
+            <Text style={{ fontSize: 12, color: colors.primary, fontWeight: '600' }}>Clear</Text>
+          </Pressable>
+        </ScrollView>
+
+        {activeFilterMenu ? (
+          <View style={{ marginTop: 10, backgroundColor: colors.card, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: colors.border }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: colors.muted }}>
+                {activeFilterMenu === 'wall'
+                  ? 'Wall'
+                  : activeFilterMenu === 'sort'
+                    ? 'Sort'
+                    : activeFilterMenu === 'minGrade'
+                      ? 'Min Grade'
+                      : activeFilterMenu === 'maxGrade'
+                        ? 'Max Grade'
+                        : 'Setter'}
+              </Text>
+              <Pressable onPress={() => setActiveFilterMenu(null)}>
+                <Text style={{ fontSize: 12, color: colors.primary, fontWeight: '600' }}>Close</Text>
+              </Pressable>
+            </View>
+
+            {activeFilterMenu === 'sort' ? (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {[
+                  { id: 'newest', label: 'Newest' },
+                  { id: 'highest-rated', label: 'Highest Rated' },
+                  { id: 'most-liked', label: 'Most Liked' },
+                  { id: 'most-climbed', label: 'Most Climbed' },
+                ].map((option) => (
+                  <Pressable
+                    key={option.id}
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 7,
+                      borderRadius: 10,
+                      backgroundColor: sortBy === option.id ? `${colors.primary}14` : colors.background,
+                    }}
+                    onPress={() => {
+                      setSortBy(option.id as typeof sortBy);
+                      setActiveFilterMenu(null);
+                    }}
+                  >
+                    <Text style={{ fontSize: 12, color: colors.text, fontWeight: '500' }}>{option.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+
+            {activeFilterMenu === 'minGrade' ? (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {gradeOptions.map((grade) => (
+                  <Pressable
+                    key={`min-${grade === null ? 'any' : grade}`}
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 7,
+                      borderRadius: 10,
+                      backgroundColor: minGrade === grade ? `${colors.primary}14` : colors.background,
+                    }}
+                    onPress={() => {
+                      setMinGrade(grade);
+                      setActiveFilterMenu(null);
+                    }}
+                  >
+                    <Text style={{ fontSize: 12, color: colors.text, fontWeight: '500' }}>
+                      {grade === null ? 'Any' : `V${grade}`}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+
+            {activeFilterMenu === 'maxGrade' ? (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {gradeOptions.map((grade) => (
+                  <Pressable
+                    key={`max-${grade === null ? 'any' : grade}`}
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 7,
+                      borderRadius: 10,
+                      backgroundColor: maxGrade === grade ? `${colors.primary}14` : colors.background,
+                    }}
+                    onPress={() => {
+                      setMaxGrade(grade);
+                      setActiveFilterMenu(null);
+                    }}
+                  >
+                    <Text style={{ fontSize: 12, color: colors.text, fontWeight: '500' }}>
+                      {grade === null ? 'Any' : `V${grade}`}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+
+            {activeFilterMenu === 'setter' ? (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                <Pressable
+                  style={{
+                    paddingHorizontal: 10,
+                    paddingVertical: 7,
+                    borderRadius: 10,
+                    backgroundColor: setterFilter === 'all' ? `${colors.primary}14` : colors.background,
+                  }}
+                  onPress={() => {
+                    setSetterFilter('all');
+                    setActiveFilterMenu(null);
+                  }}
+                >
+                  <Text style={{ fontSize: 12, color: colors.text, fontWeight: '500' }}>All Setters</Text>
+                </Pressable>
+                {availableSetters.map((setter) => (
+                  <Pressable
+                    key={setter}
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 7,
+                      borderRadius: 10,
+                      backgroundColor: setterFilter === setter ? `${colors.primary}14` : colors.background,
+                    }}
+                    onPress={() => {
+                      setSetterFilter(setter);
+                      setActiveFilterMenu(null);
+                    }}
+                  >
+                    <Text style={{ fontSize: 12, color: colors.text, fontWeight: '500' }}>{setter}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+
+            {activeFilterMenu === 'wall' ? (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                <Pressable
+                  style={{
+                    paddingHorizontal: 10,
+                    paddingVertical: 7,
+                    borderRadius: 10,
+                    backgroundColor: activeWallId === 'all-walls' ? `${colors.primary}14` : colors.background,
+                  }}
+                  onPress={() => {
+                    setSelectedWall({
+                      id: 'all-walls',
+                      user_id: 'system',
+                      name: 'All Walls',
+                      image_url: '',
+                      image_width: 0,
+                      image_height: 0,
+                      is_public: true,
+                      created_at: new Date().toISOString(),
+                      updated_at: new Date().toISOString(),
+                    });
+                    setActiveFilterMenu(null);
+                  }}
+                >
+                  <Text style={{ fontSize: 12, color: colors.text, fontWeight: '500' }}>All Walls</Text>
+                </Pressable>
+                {walls.map((wall) => (
+                  <Pressable
+                    key={wall.id}
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 7,
+                      borderRadius: 10,
+                      backgroundColor: activeWallId === wall.id ? `${colors.primary}14` : colors.background,
+                    }}
+                    onPress={() => {
+                      setSelectedWall(wall);
+                      setActiveFilterMenu(null);
+                    }}
+                  >
+                    <Text style={{ fontSize: 12, color: colors.text, fontWeight: '500' }}>{wall.name}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+      </View>
 
       {/* Route List */}
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#8b6f47" />
-          <Text style={{ fontSize: 14, color: '#8b7668', marginTop: 12 }}>Loading routes...</Text>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={{ fontSize: 14, color: colors.muted, marginTop: 12 }}>Loading routes...</Text>
         </View>
       ) : sortedRoutes.length === 0 ? (
         <View className="flex-1 items-center justify-center px-8">
           {searchQuery ? (
             <>
-              <Text style={{ fontSize: 18, fontWeight: '600', color: '#3d2817', marginBottom: 4 }}>No routes found</Text>
-              <Text style={{ fontSize: 14, color: '#8b7668', textAlign: 'center' }}>Try adjusting your search</Text>
+              <Text style={{ fontSize: 18, fontWeight: '600', color: colors.text, marginBottom: 4 }}>No routes found</Text>
+              <Text style={{ fontSize: 14, color: colors.muted, textAlign: 'center' }}>Try adjusting your search</Text>
             </>
           ) : (
             <>
-              <View style={{ width: 80, height: 80, borderRadius: 24, backgroundColor: 'rgba(74,124,89,0.12)', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+              <View style={{ width: 80, height: 80, borderRadius: 24, backgroundColor: `${colors.secondary}1f`, alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
                 <Text style={{ fontSize: 32 }}>🧗</Text>
               </View>
-              <Text style={{ fontSize: 18, fontWeight: '600', color: '#3d2817', marginBottom: 4 }}>Create your first route</Text>
-              <Text style={{ fontSize: 14, color: '#8b7668', textAlign: 'center', marginBottom: 24 }}>
+              <Text style={{ fontSize: 18, fontWeight: '600', color: colors.text, marginBottom: 4 }}>Create your first route</Text>
+              <Text style={{ fontSize: 14, color: colors.muted, textAlign: 'center', marginBottom: 24 }}>
                 Tap holds on your wall to build climbing routes
               </Text>
               <Pressable
-                style={{ backgroundColor: '#8b6f47', borderRadius: 14, paddingHorizontal: 24, paddingVertical: 12 }}
+                style={{ backgroundColor: colors.primary, borderRadius: 14, paddingHorizontal: 24, paddingVertical: 12 }}
                 onPress={() => router.push('/(tabs)/editor')}
               >
-                <Text style={{ color: '#fffbf7', fontWeight: '600' }}>Create Route</Text>
+                <Text style={{ color: colors.card, fontWeight: '600' }}>Create Route</Text>
               </Pressable>
-              <View style={{ flexDirection: 'row', gap: 16, marginTop: 32, paddingTop: 24, borderTopWidth: 1, borderTopColor: 'rgba(230,221,208,0.4)' }}>
+              <View style={{ flexDirection: 'row', gap: 16, marginTop: 32, paddingTop: 24, borderTopWidth: 1, borderTopColor: `${colors.border}66` }}>
                 {Object.entries(HOLD_COLORS).map(([type, color]) => (
                   <View key={type} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <View style={{ backgroundColor: color, width: 10, height: 10, borderRadius: 5 }} />
-                    <Text style={{ fontSize: 12, color: '#8b7668', textTransform: 'capitalize' }}>{type}</Text>
+                    <Text style={{ fontSize: 12, color: colors.muted, textTransform: 'capitalize' }}>{type}</Text>
                   </View>
                 ))}
               </View>
@@ -367,117 +677,60 @@ export default function HomeScreen() {
           renderItem={({ item, index }) => (
             <RouteRow
               route={item}
-              isLast={index === sortedRoutes.length - 1}
               wallName={getWallById(item.wall_id)?.name}
+              wallImage={item.wall_image_url || getWallById(item.wall_id)?.image_url}
               onPress={() => setRouteToViewId(item.id)}
             />
           )}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 140, paddingTop: 8 }}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#8b6f47" />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
           }
         />
       )}
 
-      {/* FAB — frosted glass */}
+      {/* FAB */}
       {filteredRoutes.length > 0 && (
         <Pressable
           style={{
             position: 'absolute', bottom: 24, right: 20,
             width: 56, height: 56, borderRadius: 28,
             overflow: 'hidden',
-            shadowColor: '#8b6f47', shadowOffset: { width: 0, height: 4 },
+            shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 },
             shadowOpacity: 0.35, shadowRadius: 12, elevation: 8,
+            backgroundColor: colors.primary,
           }}
           onPress={() => router.push('/(tabs)/editor')}
           className="active:opacity-80"
         >
-          <BlurView intensity={90} tint="systemChromeMaterialLight" style={{
-            flex: 1, alignItems: 'center', justifyContent: 'center',
-            backgroundColor: 'rgba(139,111,71,0.85)',
-          }}>
-            <Text style={{ color: '#fffbf7', fontSize: 28, fontWeight: '300', marginTop: -2 }}>+</Text>
-          </BlurView>
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ color: colors.card, fontSize: 28, fontWeight: '300', marginTop: -2 }}>+</Text>
+          </View>
         </Pressable>
       )}
 
-      <Modal visible={showWallPicker} animationType="slide" onRequestClose={() => setShowWallPicker(false)}>
-        <View className="flex-1 bg-background">
-          <View className="px-5 pt-6 pb-4 border-b border-border">
-            <Text className="text-lg font-semibold text-foreground">Select Wall</Text>
-          </View>
-          <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
-            <Pressable
-              style={{
-                padding: 14,
-                borderRadius: 16,
-                borderWidth: 1,
-                borderColor: activeWallId === 'all-walls' ? '#8b6f47' : '#e6ddd0',
-                backgroundColor: activeWallId === 'all-walls' ? 'rgba(139,111,71,0.08)' : '#fffbf7',
-                marginBottom: 10,
-              }}
-              onPress={() => {
-                setSelectedWall({
-                  id: 'all-walls',
-                  user_id: 'system',
-                  name: 'All Walls',
-                  image_url: '',
-                  image_width: 0,
-                  image_height: 0,
-                  is_public: true,
-                  created_at: new Date().toISOString(),
-                  updated_at: new Date().toISOString(),
-                });
-                setShowWallPicker(false);
-              }}
-            >
-              <Text style={{ fontSize: 15, fontWeight: '600', color: '#3d2817' }}>All Walls</Text>
-              <Text style={{ fontSize: 12, color: '#8b7668', marginTop: 4 }}>
-                {routes.length} routes
-              </Text>
-            </Pressable>
-
-            {walls.map((wall) => (
-              <Pressable
-                key={wall.id}
-                style={{
-                  padding: 14,
-                  borderRadius: 16,
-                  borderWidth: 1,
-                  borderColor: activeWallId === wall.id ? '#8b6f47' : '#e6ddd0',
-                  backgroundColor: activeWallId === wall.id ? 'rgba(139,111,71,0.08)' : '#fffbf7',
-                  marginBottom: 10,
-                }}
-                onPress={() => {
-                  setSelectedWall(wall);
-                  setShowWallPicker(false);
-                }}
-              >
-                <Text style={{ fontSize: 15, fontWeight: '600', color: '#3d2817' }} numberOfLines={1}>
-                  {wall.name}
-                </Text>
-                <Text style={{ fontSize: 12, color: '#8b7668', marginTop: 4 }}>
-                  {routes.filter((r) => r.wall_id === wall.id).length} routes
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </View>
-      </Modal>
-
       <Modal visible={!!routeToView} animationType="slide" onRequestClose={() => setRouteToViewId(null)}>
         {routeToView && (
-          <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+          <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
             <View
-              className="px-5 pb-4 border-b border-border flex-row items-center justify-between"
-              style={{ paddingTop: 8 }}
+              style={{
+                paddingHorizontal: 20,
+                paddingBottom: 16,
+                borderBottomWidth: 1,
+                borderBottomColor: colors.border,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                paddingTop: 8,
+              }}
             >
-              <Text className="text-lg font-semibold text-foreground">Route</Text>
+              <Text style={{ fontSize: 18, fontWeight: '600', color: colors.text }}>Route</Text>
               <Pressable onPress={() => setRouteToViewId(null)}>
-                <Text className="text-primary font-medium">Close</Text>
+                <Text style={{ color: colors.primary, fontWeight: '600' }}>Close</Text>
               </Pressable>
             </View>
             <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
-              <View className="rounded-2xl border border-border bg-card overflow-hidden mb-4">
+              <View style={{ borderRadius: 16, backgroundColor: colors.card, overflow: 'hidden', marginBottom: 16 }}>
                 {(() => {
                   const wall = getWallById(routeToView.wall_id);
                   const imageUrl = routeToView.wall_image_url || wall?.image_url;
@@ -488,43 +741,43 @@ export default function HomeScreen() {
                       resizeMode="cover"
                     />
                   ) : (
-                    <View style={{ height: 200, alignItems: 'center', justifyContent: 'center', backgroundColor: '#ede5d8' }}>
-                      <Text style={{ color: '#8b7668' }}>No wall image</Text>
+                    <View style={{ height: 200, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.border }}>
+                      <Text style={{ color: colors.muted }}>No wall image</Text>
                     </View>
                   );
                 })()}
               </View>
 
-              <Text style={{ fontSize: 20, fontWeight: '700', color: '#3d2817' }}>{routeToView.name}</Text>
+              <Text style={{ fontSize: 20, fontWeight: '700', color: colors.text }}>{routeToView.name}</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
                 {routeToView.grade_v ? (
-                  <Text style={{ fontSize: 14, color: '#8b6f47', fontWeight: '600' }}>{routeToView.grade_v}</Text>
+                  <Text style={{ fontSize: 14, color: colors.primary, fontWeight: '600' }}>{routeToView.grade_v}</Text>
                 ) : null}
-                <Text style={{ fontSize: 12, color: '#8b7668' }}>
+                <Text style={{ fontSize: 12, color: colors.muted }}>
                   {getWallById(routeToView.wall_id)?.name || 'Unknown wall'}
                 </Text>
               </View>
 
               {routeToView.user_name && (
-                <Text style={{ fontSize: 13, color: '#8b7668', marginTop: 6 }}>
+                <Text style={{ fontSize: 13, color: colors.muted, marginTop: 6 }}>
                   Set by {routeToView.user_name}
                 </Text>
               )}
 
-              <View style={{ marginTop: 16, borderRadius: 16, borderWidth: 1, borderColor: '#e6ddd0', padding: 12, backgroundColor: '#fffbf7' }}>
-                <Text style={{ fontSize: 12, color: '#8b7668', marginBottom: 6 }}>Stats</Text>
+              <View style={{ marginTop: 16, borderRadius: 16, padding: 12, backgroundColor: colors.card }}>
+                <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 6 }}>Stats</Text>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                   <View>
-                    <Text style={{ fontSize: 16, fontWeight: '700', color: '#3d2817' }}>{routeToView.holds.length}</Text>
-                    <Text style={{ fontSize: 11, color: '#8b7668' }}>Holds</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>{routeToView.holds.length}</Text>
+                    <Text style={{ fontSize: 11, color: colors.muted }}>Holds</Text>
                   </View>
                   <View>
-                    <Text style={{ fontSize: 16, fontWeight: '700', color: '#3d2817' }}>{routeToView.like_count || 0}</Text>
-                    <Text style={{ fontSize: 11, color: '#8b7668' }}>Likes</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>{routeToView.like_count || 0}</Text>
+                    <Text style={{ fontSize: 11, color: colors.muted }}>Likes</Text>
                   </View>
                   <View>
-                    <Text style={{ fontSize: 16, fontWeight: '700', color: '#3d2817' }}>{routeToView.ascents?.length || 0}</Text>
-                    <Text style={{ fontSize: 11, color: '#8b7668' }}>Sends</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>{routeToView.ascents?.length || 0}</Text>
+                    <Text style={{ fontSize: 11, color: colors.muted }}>Sends</Text>
                   </View>
                 </View>
                 <View style={{ marginTop: 10 }}>
@@ -535,7 +788,7 @@ export default function HomeScreen() {
                     return (
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                         {renderStars(Math.round(avg))}
-                        <Text style={{ fontSize: 12, color: '#8b7668' }}>{avg > 0 ? avg.toFixed(1) : 'No ratings'}</Text>
+                        <Text style={{ fontSize: 12, color: colors.muted }}>{avg > 0 ? avg.toFixed(1) : 'No ratings'}</Text>
                       </View>
                     );
                   })()}
@@ -544,52 +797,84 @@ export default function HomeScreen() {
 
               <View style={{ marginTop: 16, flexDirection: 'row', gap: 8 }}>
                 <Pressable
-                  style={{ flex: 1, borderRadius: 12, borderWidth: 1, borderColor: '#e6ddd0', paddingVertical: 10, alignItems: 'center', backgroundColor: '#fffbf7' }}
+                  style={{ flex: 1, borderRadius: 12, paddingVertical: 10, alignItems: 'center', backgroundColor: colors.card }}
                   onPress={() => toggleLike(routeToView.id)}
                 >
-                  <Text style={{ fontSize: 13, fontWeight: '600', color: '#8b6f47' }}>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: colors.primary }}>
                     {routeToView.is_liked ? 'Liked' : 'Like'}
                   </Text>
                 </Pressable>
                 <Pressable
-                  style={{ flex: 1, borderRadius: 12, borderWidth: 1, borderColor: '#e6ddd0', paddingVertical: 10, alignItems: 'center', backgroundColor: '#fffbf7' }}
+                  style={{ flex: 1, borderRadius: 12, paddingVertical: 10, alignItems: 'center', backgroundColor: colors.card }}
                   onPress={() => setShowLogModal(true)}
                 >
-                  <Text style={{ fontSize: 13, fontWeight: '600', color: '#8b6f47' }}>Log Send</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: colors.primary }}>Log Send</Text>
                 </Pressable>
                 <Pressable
-                  style={{ flex: 1, borderRadius: 12, borderWidth: 1, borderColor: '#e6ddd0', paddingVertical: 10, alignItems: 'center', backgroundColor: '#fffbf7' }}
+                  style={{ flex: 1, borderRadius: 12, paddingVertical: 10, alignItems: 'center', backgroundColor: colors.card }}
                   onPress={() => handleShare(routeToView)}
                 >
-                  <Text style={{ fontSize: 13, fontWeight: '600', color: '#8b6f47' }}>Share</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: colors.primary }}>Share</Text>
                 </Pressable>
               </View>
 
+              {canEditRoute && (
+                <View style={{ marginTop: 10, flexDirection: 'row', gap: 8 }}>
+                  <Pressable
+                    style={{ flex: 1, borderRadius: 12, paddingVertical: 10, alignItems: 'center', backgroundColor: colors.card }}
+                    onPress={() => {
+                      setRouteToViewId(null);
+                      router.push(`/(tabs)/editor?edit=${routeToView.id}`);
+                    }}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: colors.primary }}>Edit</Text>
+                  </Pressable>
+                  <Pressable
+                    style={{ flex: 1, borderRadius: 12, paddingVertical: 10, alignItems: 'center', backgroundColor: colors.card }}
+                    onPress={() => {
+                      Alert.alert('Delete Route', `Delete "${routeToView.name}"?`, [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: 'Delete',
+                          style: 'destructive',
+                          onPress: async () => {
+                            await deleteRoute(routeToView.id);
+                            setRouteToViewId(null);
+                          },
+                        },
+                      ]);
+                    }}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: colors.muted }}>Delete</Text>
+                  </Pressable>
+                </View>
+              )}
+
               <View style={{ marginTop: 20 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: '#8b7668' }}>Beta</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: colors.muted }}>Beta</Text>
                   <Pressable onPress={() => refreshRouteComments(routeToView.id)}>
-                    <Text style={{ fontSize: 12, color: '#8b6f47', fontWeight: '600' }}>Refresh</Text>
+                    <Text style={{ fontSize: 12, color: colors.primary, fontWeight: '600' }}>Refresh</Text>
                   </Pressable>
                 </View>
                 {(routeToView.comments || []).filter((c) => c.is_beta).length === 0 ? (
-                  <Text style={{ fontSize: 12, color: '#8b7668' }}>No beta yet.</Text>
+                  <Text style={{ fontSize: 12, color: colors.muted }}>No beta yet.</Text>
                 ) : (
                   (routeToView.comments || []).filter((c) => c.is_beta).map((comment) => {
                     const isOwner = comment.user_id === (user?.id || 'local-user');
                     return (
-                      <View key={comment.id} style={{ borderWidth: 1, borderColor: '#e6ddd0', borderRadius: 12, padding: 10, marginBottom: 8, backgroundColor: '#fffbf7' }}>
-                        <Text style={{ fontSize: 13, color: '#3d2817' }}>{comment.content}</Text>
-                        <Text style={{ fontSize: 11, color: '#8b7668', marginTop: 6 }}>
+                    <View key={comment.id} style={{ borderRadius: 12, padding: 10, marginBottom: 8, backgroundColor: colors.card }}>
+                        <Text style={{ fontSize: 13, color: colors.text }}>{comment.content}</Text>
+                        <Text style={{ fontSize: 11, color: colors.muted, marginTop: 6 }}>
                           {comment.user_name || 'Anonymous'} • {formatTimeAgo(comment.created_at)}
                         </Text>
                         {isOwner && (
                           <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
                             <Pressable onPress={() => startEditComment(comment.id, comment.content, true)}>
-                              <Text style={{ fontSize: 12, color: '#8b6f47', fontWeight: '600' }}>Edit</Text>
+                              <Text style={{ fontSize: 12, color: colors.primary, fontWeight: '600' }}>Edit</Text>
                             </Pressable>
                             <Pressable onPress={() => deleteComment(routeToView.id, comment.id)}>
-                              <Text style={{ fontSize: 12, color: '#b91c1c', fontWeight: '600' }}>Delete</Text>
+                              <Text style={{ fontSize: 12, color: colors.muted, fontWeight: '600' }}>Delete</Text>
                             </Pressable>
                           </View>
                         )}
@@ -600,25 +885,25 @@ export default function HomeScreen() {
               </View>
 
               <View style={{ marginTop: 16 }}>
-                <Text style={{ fontSize: 12, fontWeight: '600', color: '#8b7668', marginBottom: 8 }}>Comments</Text>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: colors.muted, marginBottom: 8 }}>Comments</Text>
                 {(routeToView.comments || []).filter((c) => !c.is_beta).length === 0 ? (
-                  <Text style={{ fontSize: 12, color: '#8b7668' }}>No comments yet.</Text>
+                  <Text style={{ fontSize: 12, color: colors.muted }}>No comments yet.</Text>
                 ) : (
                   (routeToView.comments || []).filter((c) => !c.is_beta).map((comment) => {
                     const isOwner = comment.user_id === (user?.id || 'local-user');
                     return (
-                      <View key={comment.id} style={{ borderWidth: 1, borderColor: '#e6ddd0', borderRadius: 12, padding: 10, marginBottom: 8, backgroundColor: '#fffbf7' }}>
-                        <Text style={{ fontSize: 13, color: '#3d2817' }}>{comment.content}</Text>
-                        <Text style={{ fontSize: 11, color: '#8b7668', marginTop: 6 }}>
+                      <View key={comment.id} style={{ borderRadius: 12, padding: 10, marginBottom: 8, backgroundColor: colors.card }}>
+                        <Text style={{ fontSize: 13, color: colors.text }}>{comment.content}</Text>
+                        <Text style={{ fontSize: 11, color: colors.muted, marginTop: 6 }}>
                           {comment.user_name || 'Anonymous'} • {formatTimeAgo(comment.created_at)}
                         </Text>
                         {isOwner && (
                           <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
                             <Pressable onPress={() => startEditComment(comment.id, comment.content, false)}>
-                              <Text style={{ fontSize: 12, color: '#8b6f47', fontWeight: '600' }}>Edit</Text>
+                              <Text style={{ fontSize: 12, color: colors.primary, fontWeight: '600' }}>Edit</Text>
                             </Pressable>
                             <Pressable onPress={() => deleteComment(routeToView.id, comment.id)}>
-                              <Text style={{ fontSize: 12, color: '#b91c1c', fontWeight: '600' }}>Delete</Text>
+                              <Text style={{ fontSize: 12, color: colors.muted, fontWeight: '600' }}>Delete</Text>
                             </Pressable>
                           </View>
                         )}
@@ -628,16 +913,24 @@ export default function HomeScreen() {
                 )}
               </View>
 
-              <View style={{ marginTop: 16, borderRadius: 16, borderWidth: 1, borderColor: '#e6ddd0', padding: 12, backgroundColor: '#fffbf7' }}>
-                <Text style={{ fontSize: 12, fontWeight: '600', color: '#8b7668', marginBottom: 8 }}>Add a comment</Text>
+              <View style={{ marginTop: 16, borderRadius: 16, padding: 12, backgroundColor: colors.card }}>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: colors.muted, marginBottom: 8 }}>Add a comment</Text>
                 <TextInput
                   placeholder="Share beta or feedback"
-                  placeholderTextColor="#8b7668"
+                  placeholderTextColor={colors.muted}
                   value={commentText}
                   onChangeText={setCommentText}
                   multiline
-                  className="border border-border bg-card rounded-xl px-4 py-3 text-foreground"
-                  style={{ minHeight: 80 }}
+                  style={{
+                    minHeight: 80,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.background,
+                    borderRadius: 12,
+                    paddingHorizontal: 16,
+                    paddingVertical: 12,
+                    color: colors.text,
+                  }}
                 />
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 }}>
                   <Pressable
@@ -645,28 +938,26 @@ export default function HomeScreen() {
                       paddingHorizontal: 12,
                       paddingVertical: 8,
                       borderRadius: 10,
-                      borderWidth: 1,
-                      borderColor: commentIsBeta ? '#8b6f47' : '#e6ddd0',
-                      backgroundColor: commentIsBeta ? 'rgba(139,111,71,0.1)' : '#fffbf7',
-                    }}
-                    onPress={() => setCommentIsBeta((v) => !v)}
-                  >
-                    <Text style={{ fontSize: 12, color: '#3d2817', fontWeight: '600' }}>
-                      {commentIsBeta ? 'Beta' : 'Mark as Beta'}
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    style={{
-                      marginLeft: 'auto',
-                      backgroundColor: '#8b6f47',
-                      paddingHorizontal: 14,
-                      paddingVertical: 8,
-                      borderRadius: 10,
-                    }}
-                    onPress={handleAddComment}
-                  >
-                    <Text style={{ color: '#fffbf7', fontWeight: '600' }}>Post</Text>
-                  </Pressable>
+                    backgroundColor: commentIsBeta ? `${colors.primary}1a` : colors.card,
+                  }}
+                  onPress={() => setCommentIsBeta((v) => !v)}
+                >
+                  <Text style={{ fontSize: 12, color: colors.text, fontWeight: '600' }}>
+                    {commentIsBeta ? 'Beta' : 'Mark as Beta'}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={{
+                    marginLeft: 'auto',
+                    backgroundColor: colors.primary,
+                    paddingHorizontal: 14,
+                    paddingVertical: 8,
+                    borderRadius: 10,
+                  }}
+                  onPress={handleAddComment}
+                >
+                  <Text style={{ color: colors.card, fontWeight: '600' }}>Post</Text>
+                </Pressable>
                 </View>
               </View>
             </ScrollView>
@@ -675,34 +966,40 @@ export default function HomeScreen() {
       </Modal>
 
       <Modal visible={showLogModal} animationType="slide" onRequestClose={() => setShowLogModal(false)}>
-        <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
           <View
-            className="px-5 pb-4 border-b border-border flex-row items-center justify-between"
-            style={{ paddingTop: 8 }}
+            style={{
+              paddingHorizontal: 20,
+              paddingBottom: 16,
+              borderBottomWidth: 1,
+              borderBottomColor: colors.border,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingTop: 8,
+            }}
           >
-            <Text className="text-lg font-semibold text-foreground">Log Send</Text>
+            <Text style={{ fontSize: 18, fontWeight: '600', color: colors.text }}>Log Send</Text>
             <Pressable onPress={() => setShowLogModal(false)}>
-              <Text className="text-primary font-medium">Close</Text>
+              <Text style={{ color: colors.primary, fontWeight: '600' }}>Close</Text>
             </Pressable>
           </View>
           <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
-            <Text style={{ fontSize: 12, color: '#8b7668', marginBottom: 8 }}>Rating</Text>
+            <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 8 }}>Rating</Text>
             <View style={{ flexDirection: 'row', gap: 6, marginBottom: 16, alignItems: 'center' }}>
               {[1, 2, 3, 4, 5].map((r) => (
                 <Pressable key={r} onPress={() => setLogRating(r)}>
-                  <Text style={{ color: (logRating || 0) >= r ? '#f59e0b' : '#e6ddd0', fontSize: 22 }}>★</Text>
+                  <Text style={{ color: (logRating || 0) >= r ? colors.accent : colors.border, fontSize: 22 }}>★</Text>
                 </Pressable>
               ))}
               <Pressable onPress={() => setLogRating(null)}>
-                <Text style={{ color: '#8b7668', fontSize: 12, marginLeft: 6 }}>Clear</Text>
+                <Text style={{ color: colors.muted, fontSize: 12, marginLeft: 6 }}>Clear</Text>
               </Pressable>
             </View>
 
             <Pressable
               style={{
-                borderWidth: 1,
-                borderColor: logFlashed ? '#8b6f47' : '#e6ddd0',
-                backgroundColor: logFlashed ? 'rgba(139,111,71,0.1)' : '#fffbf7',
+                backgroundColor: logFlashed ? `${colors.primary}1a` : colors.card,
                 paddingVertical: 10,
                 borderRadius: 12,
                 alignItems: 'center',
@@ -710,50 +1007,74 @@ export default function HomeScreen() {
               }}
               onPress={() => setLogFlashed((v) => !v)}
             >
-              <Text style={{ color: '#3d2817', fontWeight: '600' }}>{logFlashed ? 'Flashed' : 'Mark as Flash'}</Text>
+              <Text style={{ color: colors.text, fontWeight: '600' }}>{logFlashed ? 'Flashed' : 'Mark as Flash'}</Text>
             </Pressable>
 
-            <Text style={{ fontSize: 12, color: '#8b7668', marginBottom: 6 }}>Notes</Text>
+            <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 6 }}>Notes</Text>
             <TextInput
               placeholder="Optional notes"
-              placeholderTextColor="#8b7668"
+              placeholderTextColor={colors.muted}
               value={logNote}
               onChangeText={setLogNote}
               multiline
-              className="border border-border bg-card rounded-xl px-4 py-3 text-foreground"
-              style={{ minHeight: 80 }}
+              style={{
+                minHeight: 80,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.card,
+                borderRadius: 12,
+                paddingHorizontal: 16,
+                paddingVertical: 12,
+                color: colors.text,
+              }}
             />
 
             <Pressable
-              style={{ marginTop: 20, backgroundColor: '#8b6f47', borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}
+              style={{ marginTop: 20, backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}
               onPress={handleLogSend}
             >
-              <Text style={{ color: '#fffbf7', fontWeight: '600' }}>Save</Text>
+              <Text style={{ color: colors.card, fontWeight: '600' }}>Save</Text>
             </Pressable>
           </ScrollView>
         </SafeAreaView>
       </Modal>
 
       <Modal visible={!!editingCommentId} animationType="slide" onRequestClose={() => setEditingCommentId(null)}>
-        <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
           <View
-            className="px-5 pb-4 border-b border-border flex-row items-center justify-between"
-            style={{ paddingTop: 8 }}
+            style={{
+              paddingHorizontal: 20,
+              paddingBottom: 16,
+              borderBottomWidth: 1,
+              borderBottomColor: colors.border,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingTop: 8,
+            }}
           >
-            <Text className="text-lg font-semibold text-foreground">Edit Comment</Text>
+            <Text style={{ fontSize: 18, fontWeight: '600', color: colors.text }}>Edit Comment</Text>
             <Pressable onPress={() => setEditingCommentId(null)}>
-              <Text className="text-primary font-medium">Close</Text>
+              <Text style={{ color: colors.primary, fontWeight: '600' }}>Close</Text>
             </Pressable>
           </View>
           <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
             <TextInput
               placeholder="Update your comment"
-              placeholderTextColor="#8b7668"
+              placeholderTextColor={colors.muted}
               value={editingContent}
               onChangeText={setEditingContent}
               multiline
-              className="border border-border bg-card rounded-xl px-4 py-3 text-foreground"
-              style={{ minHeight: 100 }}
+              style={{
+                minHeight: 100,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.card,
+                borderRadius: 12,
+                paddingHorizontal: 16,
+                paddingVertical: 12,
+                color: colors.text,
+              }}
             />
             <Pressable
               style={{
@@ -761,26 +1082,24 @@ export default function HomeScreen() {
                 paddingHorizontal: 12,
                 paddingVertical: 8,
                 borderRadius: 10,
-                borderWidth: 1,
-                borderColor: editingIsBeta ? '#8b6f47' : '#e6ddd0',
-                backgroundColor: editingIsBeta ? 'rgba(139,111,71,0.1)' : '#fffbf7',
+                backgroundColor: editingIsBeta ? `${colors.primary}1a` : colors.card,
                 alignSelf: 'flex-start',
               }}
               onPress={() => setEditingIsBeta((v) => !v)}
             >
-              <Text style={{ fontSize: 12, color: '#3d2817', fontWeight: '600' }}>
+              <Text style={{ fontSize: 12, color: colors.text, fontWeight: '600' }}>
                 {editingIsBeta ? 'Beta' : 'Mark as Beta'}
               </Text>
             </Pressable>
             <Pressable
-              style={{ marginTop: 16, backgroundColor: '#8b6f47', borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}
+              style={{ marginTop: 16, backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}
               onPress={handleSaveEdit}
             >
-              <Text style={{ color: '#fffbf7', fontWeight: '600' }}>Save</Text>
+              <Text style={{ color: colors.card, fontWeight: '600' }}>Save</Text>
             </Pressable>
           </ScrollView>
         </SafeAreaView>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
