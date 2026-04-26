@@ -52,11 +52,12 @@ function RouteRow({
   route: Route;
   wallName?: string;
   wallImage?: string;
+  now: number;
   onPress: () => void;
 }) {
   const displayGrade = calculateDisplayGrade(route.grade_v, route.ascents);
   const sendCount = route.ascents?.length || 0;
-  const timeAgo = getTimeAgo(route.created_at);
+  const timeAgo = getTimeAgo(route.created_at, now);
   const meta = `${route.user_name || 'Setter'}${wallName ? ` • ${wallName}` : ''}`;
   const metrics = `${route.like_count || 0} likes${sendCount > 0 ? ` • ${sendCount} ${sendCount === 1 ? 'send' : 'sends'}` : ''}`;
 
@@ -110,8 +111,8 @@ function RouteRow({
   );
 }
 
-function getTimeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
+function getTimeAgo(dateStr: string, now: number): string {
+  const diff = now - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 60) return `${mins}m`;
   const hrs = Math.floor(mins / 60);
@@ -156,14 +157,16 @@ export default function HomeScreen() {
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState('');
   const [editingIsBeta, setEditingIsBeta] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     fetchRoutes();
     fetchWalls();
-  }, []);
+  }, [fetchRoutes, fetchWalls]);
 
   const onRefresh = async () => {
     setRefreshing(true);
+    setNow(Date.now());
     await fetchRoutes();
     await fetchWalls();
     setRefreshing(false);
@@ -230,7 +233,7 @@ export default function HomeScreen() {
   );
 
   const formatTimeAgo = (dateStr: string) => {
-    const diff = Date.now() - new Date(dateStr).getTime();
+    const diff = now - new Date(dateStr).getTime();
     const mins = Math.floor(diff / 60000);
     if (mins < 60) return `${mins}m`;
     const hrs = Math.floor(mins / 60);
@@ -674,11 +677,12 @@ export default function HomeScreen() {
         <FlatList
           data={sortedRoutes}
           keyExtractor={(item) => item.id}
-          renderItem={({ item, index }) => (
+          renderItem={({ item }) => (
             <RouteRow
               route={item}
               wallName={getWallById(item.wall_id)?.name}
               wallImage={item.wall_image_url || getWallById(item.wall_id)?.image_url}
+              now={now}
               onPress={() => setRouteToViewId(item.id)}
             />
           )}

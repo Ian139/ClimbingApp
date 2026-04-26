@@ -26,6 +26,9 @@ enum AppLayout {
     static let cornerRadius: CGFloat = 14
     static let horizontalPadding: CGFloat = 16
     static let verticalPadding: CGFloat = 12
+    static let contentMaxWidth: CGFloat = 560
+    static let editorMaxWidth: CGFloat = 620
+    static let defaultWallAspectRatio: CGFloat = 3001.0 / 2733.0
 }
 
 private func hexToRGB(_ value: String) -> (r: Double, g: Double, b: Double) {

@@ -17,6 +17,7 @@ import {
   type Hold,
   type HoldType,
   type HoldSize,
+  type Route,
 } from '@climbset/shared';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { nanoid } from 'nanoid/non-secure';
@@ -43,7 +44,6 @@ export default function EditorScreen() {
   const [undoStack, setUndoStack] = useState<Hold[][]>([]);
   const { selectedWall, fetchWalls, setSelectedWall, getWallById } = useWallsStore();
   const { routes, addRoute, updateRoute } = useRoutesStore();
-  const [editingRouteId, setEditingRouteId] = useState<string | null>(null);
   const loadedRouteIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -53,7 +53,6 @@ export default function EditorScreen() {
   useEffect(() => {
     if (!editRouteId) {
       loadedRouteIdRef.current = null;
-      setEditingRouteId(null);
       return;
     }
 
@@ -63,17 +62,20 @@ export default function EditorScreen() {
     if (!route) return;
 
     loadedRouteIdRef.current = editRouteId;
-    setEditingRouteId(editRouteId);
-    setRouteName(route.name || '');
-    setRouteGrade(route.grade_v || '');
-    setHolds(route.holds || []);
-    setUndoStack([]);
-    setShowSequence((route.holds || []).some((h) => h.sequence != null));
+    const timer = setTimeout(() => {
+      setRouteName(route.name || '');
+      setRouteGrade(route.grade_v || '');
+      setHolds(route.holds || []);
+      setUndoStack([]);
+      setShowSequence((route.holds || []).some((h) => h.sequence != null));
 
-    if (route.wall_id) {
-      const wall = getWallById(route.wall_id);
-      if (wall) setSelectedWall(wall);
-    }
+      if (route.wall_id) {
+        const wall = getWallById(route.wall_id);
+        if (wall) setSelectedWall(wall);
+      }
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [editRouteId, routes, getWallById, setSelectedWall]);
 
   const canvasLayout = useRef({ width: 0, height: 0 });
@@ -137,7 +139,7 @@ export default function EditorScreen() {
     ]);
   };
 
-  const isEditMode = !!editingRouteId;
+  const isEditMode = !!editRouteId;
 
   const handleSave = async () => {
     if (!selectedWall) {
@@ -147,8 +149,8 @@ export default function EditorScreen() {
     const wallId = selectedWall.id;
     const wallImageUrl = selectedWall.image_url || undefined;
 
-    if (isEditMode && editingRouteId) {
-      await updateRoute(editingRouteId, {
+    if (isEditMode && editRouteId) {
+      await updateRoute(editRouteId, {
         name: routeName.trim(),
         grade_v: routeGrade || undefined,
         holds,
@@ -161,7 +163,7 @@ export default function EditorScreen() {
       return;
     }
 
-    const route = {
+    const route: Route = {
       id: nanoid(),
       user_id: 'local-user',
       user_name: 'You',
@@ -178,7 +180,7 @@ export default function EditorScreen() {
       like_count: 0,
     };
 
-    await addRoute(route as any);
+    await addRoute(route);
     Alert.alert('Saved!', `"${routeName}" saved with ${holds.length} holds.`);
     setSaveModalVisible(false);
     setRouteName('');

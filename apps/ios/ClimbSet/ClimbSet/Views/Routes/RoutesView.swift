@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct RoutesView: View {
-    @StateObject private var viewModel = RoutesViewModel(repository: AppServices.routesRepository)
+    @EnvironmentObject var viewModel: RoutesViewModel
     @State private var selectedRoute: Route?
 
     var body: some View {
@@ -15,7 +15,9 @@ struct RoutesView: View {
             }
         }
         .task {
-            await viewModel.load()
+            if viewModel.routes.isEmpty {
+                await viewModel.load()
+            }
         }
         .sheet(item: $selectedRoute) { route in
             RouteDetailView(route: route)
@@ -52,6 +54,8 @@ struct RoutesView: View {
         .padding(.horizontal, AppLayout.horizontalPadding)
         .padding(.top, 12)
         .padding(.bottom, 10)
+        .frame(maxWidth: AppLayout.contentMaxWidth)
+        .frame(maxWidth: .infinity)
     }
 
     private var content: some View {
@@ -68,18 +72,27 @@ struct RoutesView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
-                    LazyVStack(spacing: 0) {
+                    LazyVStack(spacing: 10) {
                         ForEach(viewModel.filteredRoutes) { route in
                             RouteRow(route: route)
                                 .contentShape(Rectangle())
                                 .onTapGesture {
                                     selectedRoute = route
                                 }
-                                .padding(.horizontal, AppLayout.horizontalPadding)
-                                .padding(.vertical, 12)
-                            Divider().background(AppColor.border)
+                                .padding(12)
+                                .background(AppColor.surface)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
+                                        .stroke(AppColor.border.opacity(0.7), lineWidth: 1)
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
+                                .frame(maxWidth: AppLayout.contentMaxWidth)
+                                .frame(maxWidth: .infinity)
                         }
                     }
+                    .padding(.horizontal, AppLayout.horizontalPadding)
+                    .padding(.vertical, 12)
+                    .safeAreaPadding(.bottom, 12)
                 }
             }
         }
@@ -89,5 +102,6 @@ struct RoutesView: View {
 struct RoutesView_Previews: PreviewProvider {
     static var previews: some View {
         RoutesView()
+            .environmentObject(RoutesViewModel(repository: MockRoutesRepository()))
     }
 }

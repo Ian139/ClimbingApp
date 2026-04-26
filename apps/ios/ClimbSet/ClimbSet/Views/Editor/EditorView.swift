@@ -2,6 +2,7 @@ import SwiftUI
 
 struct EditorView: View {
     @EnvironmentObject var session: AppSession
+    @EnvironmentObject var routesViewModel: RoutesViewModel
     @StateObject private var wallsViewModel = WallsViewModel()
     @State private var holds: [Hold] = []
     @State private var selectedType: HoldType = .hand
@@ -11,6 +12,8 @@ struct EditorView: View {
     @State private var routeGrade = ""
     @State private var isSavePresented = false
     @State private var isWallPickerPresented = false
+    @State private var isSaving = false
+    @State private var saveErrorMessage: String? = nil
 
     var body: some View {
         ZStack {
@@ -21,6 +24,7 @@ struct EditorView: View {
                 Divider().background(AppColor.border)
                 wallCanvas
                 controls
+                Spacer(minLength: 0)
             }
         }
         .sheet(isPresented: $isSavePresented) {
@@ -28,34 +32,20 @@ struct EditorView: View {
                 routeName: $routeName,
                 routeGrade: $routeGrade,
                 holdsCount: holds.count,
-                onSave: { isSavePresented = false },
+                isSaving: isSaving,
+                errorMessage: saveErrorMessage,
+                onSave: { await saveRoute() },
                 onCancel: { isSavePresented = false }
             )
         }
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Editor")
-                    .font(AppTypography.title)
-                    .foregroundColor(AppColor.text)
-                Spacer()
-                Button {
-                    isSavePresented = true
-                } label: {
-                    Text("Save")
-                        .font(AppTypography.label)
-                        .foregroundColor(AppColor.primary)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(AppColor.primary.opacity(0.12))
-                        .clipShape(Capsule())
-                }
-                .disabled(holds.isEmpty)
-                .opacity(holds.isEmpty ? 0.4 : 1)
-            }
-
+        HStack(spacing: 10) {
+            Text("Editor")
+                .font(AppTypography.title)
+                .foregroundColor(AppColor.text)
+                .lineLimit(1)
             Button {
                 isWallPickerPresented = true
             } label: {
@@ -64,6 +54,7 @@ struct EditorView: View {
                         .font(.system(size: 12, weight: .semibold))
                     Text(selectedWallName)
                         .font(AppTypography.label)
+                        .lineLimit(1)
                 }
                 .foregroundColor(AppColor.muted)
                 .padding(.horizontal, 10)
@@ -75,9 +66,29 @@ struct EditorView: View {
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             }
+
+            Spacer(minLength: 4)
+
+            Button {
+                saveErrorMessage = nil
+                isSavePresented = true
+            } label: {
+                Text("Save")
+                    .font(AppTypography.label)
+                    .foregroundColor(AppColor.primary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(AppColor.primary.opacity(0.12))
+                    .clipShape(Capsule())
+            }
+            .disabled(holds.isEmpty || selectedWall == nil)
+            .opacity((holds.isEmpty || selectedWall == nil) ? 0.4 : 1)
         }
         .padding(.horizontal, AppLayout.horizontalPadding)
-        .padding(.vertical, 12)
+        .padding(.top, 8)
+        .padding(.bottom, 8)
+        .frame(maxWidth: AppLayout.contentMaxWidth)
+        .frame(maxWidth: .infinity)
         .sheet(isPresented: $isWallPickerPresented) {
             WallPickerView(viewModel: wallsViewModel)
                 .environmentObject(session)
@@ -88,68 +99,101 @@ struct EditorView: View {
     }
 
     private var wallCanvas: some View {
-        GeometryReader { proxy in
-            ZStack {
-                RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
-                    .fill(AppColor.surface)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
-                            .stroke(AppColor.border, lineWidth: 1)
-                    )
-
-                if let wall = selectedWall, let urlString = wall.imageUrl, let url = URL(string: urlString) {
-                    AsyncImage(url: url) { image in
-                        image.resizable().scaledToFill()
-                    } placeholder: {
-                        Color.clear
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
-                }
-
-                if holds.isEmpty {
-                    VStack(spacing: 8) {
-                        Text(selectedWall == nil ? "Select a wall" : "Tap to place holds")
-                            .font(AppTypography.headline)
-                            .foregroundColor(AppColor.text)
-                        Text(selectedWall == nil ? "Add one in Walls" : "Long press a hold to remove")
-                            .font(AppTypography.label)
-                            .foregroundColor(AppColor.muted)
-                    }
-                }
-
-                ForEach(holds) { hold in
-                    holdView(for: hold)
-                        .position(
-                            x: hold.x * proxy.size.width,
-                            y: hold.y * proxy.size.height
-                        )
-                        .onLongPressGesture {
-                            holds.removeAll { $0.id == hold.id }
-                        }
-                }
-            }
-            .contentShape(Rectangle())
-            .onTapGesture { location in
-                guard selectedWall != nil else { return }
-                let x = max(0.02, min(0.98, location.x / proxy.size.width))
-                let y = max(0.02, min(0.98, location.y / proxy.size.height))
-                let sequence = showSequence ? holds.count + 1 : nil
-                let newHold = Hold(
-                    id: UUID().uuidString,
-                    x: x,
-                    y: y,
-                    type: selectedType,
-                    color: holdHex(for: selectedType),
-                    sequence: sequence,
-                    size: selectedSize,
-                    notes: nil
+        ZStack {
+            RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
+                .fill(AppColor.surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
+                        .stroke(AppColor.border, lineWidth: 1)
                 )
-                holds.append(newHold)
+
+            wallImage
+
+            if holds.isEmpty {
+                VStack(spacing: 8) {
+                    Text(selectedWall == nil ? "Select a wall" : "Tap to place holds")
+                        .font(AppTypography.headline)
+                        .foregroundColor(AppColor.text)
+                    Text(selectedWall == nil ? "Add one in Walls" : "Long press a hold to remove")
+                        .font(AppTypography.label)
+                        .foregroundColor(AppColor.muted)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(AppColor.surface.opacity(0.86))
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+            }
+
+            GeometryReader { proxy in
+                ZStack {
+                    Color.clear
+
+                    ForEach(holds) { hold in
+                        holdView(for: hold)
+                            .position(
+                                x: hold.normalizedX * proxy.size.width,
+                                y: hold.normalizedY * proxy.size.height
+                            )
+                            .onLongPressGesture {
+                                holds.removeAll { $0.id == hold.id }
+                            }
+                    }
+                }
+                .contentShape(Rectangle())
+                .onTapGesture { location in
+                    guard selectedWall != nil else { return }
+                    let x = max(2, min(98, (location.x / proxy.size.width) * 100))
+                    let y = max(2, min(98, (location.y / proxy.size.height) * 100))
+                    let sequence = showSequence ? holds.count + 1 : nil
+                    let newHold = Hold(
+                        id: UUID().uuidString,
+                        x: x,
+                        y: y,
+                        type: selectedType,
+                        color: selectedType.colorHex,
+                        sequence: sequence,
+                        size: selectedSize,
+                        notes: nil
+                    )
+                    holds.append(newHold)
+                }
             }
         }
-        .padding(AppLayout.horizontalPadding)
-        .padding(.vertical, 12)
+        .aspectRatio(wallAspectRatio, contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
+        .padding(.horizontal, AppLayout.horizontalPadding)
+        .padding(.top, 8)
+        .padding(.bottom, 8)
+        .frame(maxWidth: AppLayout.editorMaxWidth)
+        .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private var wallImage: some View {
+        if let url = selectedWallImageURL {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .empty:
+                    placeholderWall
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                case .failure:
+                    placeholderWall
+                @unknown default:
+                    placeholderWall
+                }
+            }
+        } else if selectedWall != nil {
+            placeholderWall
+        }
+    }
+
+    private var placeholderWall: some View {
+        Image("DefaultWall")
+            .resizable()
+            .scaledToFill()
     }
 
     private var controls: some View {
@@ -175,6 +219,8 @@ struct EditorView: View {
         }
         .padding(.horizontal, AppLayout.horizontalPadding)
         .padding(.bottom, 16)
+        .frame(maxWidth: AppLayout.contentMaxWidth)
+        .frame(maxWidth: .infinity)
     }
 
     private func holdView(for hold: Hold) -> some View {
@@ -191,7 +237,7 @@ struct EditorView: View {
                     .font(.system(size: size * 0.35, weight: .bold))
                     .foregroundColor(AppColor.text)
             } else {
-                Text(typeLabel(hold.type))
+                Text(hold.type.shortLabel)
                     .font(.system(size: size * 0.35, weight: .bold))
                     .foregroundColor(AppColor.text)
             }
@@ -215,15 +261,6 @@ struct EditorView: View {
         }
     }
 
-    private func holdHex(for type: HoldType) -> String {
-        switch type {
-        case .start: return "#10b981"
-        case .hand: return "#ef4444"
-        case .foot: return "#3b82f6"
-        case .finish: return "#f59e0b"
-        }
-    }
-
     private func sizeLabel(_ size: HoldSize) -> String {
         switch size {
         case .small: return "Small"
@@ -244,13 +281,75 @@ struct EditorView: View {
         guard let id = wallsViewModel.selectedWallId else { return nil }
         return wallsViewModel.walls.first(where: { $0.id == id })
     }
+
+    private var selectedWallImageURL: URL? {
+        guard let urlString = selectedWall?.imageUrl?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !urlString.isEmpty,
+              !urlString.hasPrefix("/") else {
+            return nil
+        }
+        return URL(string: urlString)
+    }
+
+    private var wallAspectRatio: CGFloat {
+        guard
+            let wall = selectedWall,
+            let width = wall.imageWidth,
+            let height = wall.imageHeight,
+            width > 0,
+            height > 0,
+            selectedWallImageURL != nil
+        else {
+            return AppLayout.defaultWallAspectRatio
+        }
+
+        return CGFloat(width) / CGFloat(height)
+    }
+
+    private func saveRoute() async {
+        guard let wall = selectedWall else {
+            saveErrorMessage = "Select a wall before saving."
+            return
+        }
+
+        let trimmedName = routeName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedGrade = routeGrade.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            saveErrorMessage = "Add a route name before saving."
+            return
+        }
+
+        isSaving = true
+        saveErrorMessage = nil
+        defer { isSaving = false }
+
+        do {
+            try await routesViewModel.createRoute(
+                name: trimmedName,
+                gradeV: trimmedGrade.isEmpty ? nil : trimmedGrade,
+                holds: holds,
+                wall: wall,
+                userId: session.userId,
+                userName: session.displayName
+            )
+            routeName = ""
+            routeGrade = ""
+            holds = []
+            showSequence = false
+            isSavePresented = false
+        } catch {
+            saveErrorMessage = error.localizedDescription
+        }
+    }
 }
 
 struct SaveRouteSheet: View {
     @Binding var routeName: String
     @Binding var routeGrade: String
     let holdsCount: Int
-    let onSave: () -> Void
+    let isSaving: Bool
+    let errorMessage: String?
+    let onSave: () async -> Void
     let onCancel: () -> Void
 
     var body: some View {
@@ -281,6 +380,17 @@ struct SaveRouteSheet: View {
                     Text("\(holdsCount) holds placed")
                         .font(AppTypography.label)
                         .foregroundColor(AppColor.muted)
+
+                    if let errorMessage, !errorMessage.isEmpty {
+                        Text(errorMessage)
+                            .font(AppTypography.label)
+                            .foregroundColor(AppColor.destructive)
+                    }
+
+                    if isSaving {
+                        ProgressView()
+                            .tint(AppColor.primary)
+                    }
                     Spacer()
                 }
                 .padding(AppLayout.horizontalPadding)
@@ -292,9 +402,13 @@ struct SaveRouteSheet: View {
                         .foregroundColor(AppColor.muted)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save", action: onSave)
+                    Button {
+                        Task { await onSave() }
+                    } label: {
+                        Text(isSaving ? "Saving..." : "Save")
+                    }
                         .foregroundColor(AppColor.primary)
-                        .disabled(routeName.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .disabled(routeName.trimmingCharacters(in: .whitespaces).isEmpty || isSaving)
                 }
             }
         }
@@ -304,5 +418,7 @@ struct SaveRouteSheet: View {
 struct EditorView_Previews: PreviewProvider {
     static var previews: some View {
         EditorView()
+            .environmentObject(AppSession())
+            .environmentObject(RoutesViewModel(repository: MockRoutesRepository()))
     }
 }

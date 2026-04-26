@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "apps/mobile/babel.config.js",
+    "apps/mobile/metro.config.js",
+    "apps/mobile/nativewind-resolve.js",
+    "apps/mobile/postcss.config.js",
+    "apps/mobile/tailwind.config.js",
   ]),
 ]);
 

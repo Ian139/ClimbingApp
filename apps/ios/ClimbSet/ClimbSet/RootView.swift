@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RootView: View {
     @StateObject private var session = AppSession()
+    @StateObject private var routesViewModel = RoutesViewModel(repository: AppServices.routesRepository)
 
     var body: some View {
         TabView {
@@ -32,6 +33,7 @@ struct RootView: View {
         }
         .tint(AppColor.primary)
         .environmentObject(session)
+        .environmentObject(routesViewModel)
         .task {
             await session.load()
         }

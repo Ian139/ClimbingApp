@@ -5,14 +5,20 @@ struct RouteDetailView: View {
     let route: Route
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var session: AppSession
+    @EnvironmentObject var routesViewModel: RoutesViewModel
     @StateObject private var commentsViewModel: CommentsViewModel
+    @StateObject private var wallsViewModel = WallsViewModel()
     @State private var isLiked = false
     @State private var likeCount: Int = 0
     @State private var likeError: String? = nil
+    @State private var isWallPickerPresented = false
+    @State private var wallImageUrl: String?
+    @State private var wallUpdateError: String? = nil
 
     init(route: Route) {
         self.route = route
         _commentsViewModel = StateObject(wrappedValue: CommentsViewModel(routeId: route.id))
+        _wallImageUrl = State(initialValue: route.normalizedWallImageUrl)
     }
 
     var body: some View {
@@ -46,35 +52,81 @@ struct RouteDetailView: View {
             .task {
                 await commentsViewModel.load()
             }
+            .sheet(isPresented: $isWallPickerPresented) {
+                WallPickerView(viewModel: wallsViewModel) { wall in
+                    Task {
+                        await updateRouteWall(wall)
+                    }
+                }
+                .environmentObject(session)
+            }
         }
     }
 
     private var wallHeader: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
-                .fill(AppColor.surface)
-                .frame(height: 200)
-                .overlay(
-                    RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
-                        .stroke(AppColor.border, lineWidth: 1)
-                )
+        GeometryReader { proxy in
+            ZStack {
+                RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
+                    .fill(AppColor.surface)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
+                            .stroke(AppColor.border, lineWidth: 1)
+                    )
 
-            if let imageUrl = route.wallImageUrl, let url = URL(string: imageUrl) {
-                AsyncImage(url: url) { image in
-                    image
-                        .resizable()
-                        .scaledToFill()
-                } placeholder: {
-                    Color.clear
+                if let url = wallImageURL {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .empty:
+                            Color.clear
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+                        case .failure:
+                            defaultWallImage
+                        @unknown default:
+                            defaultWallImage
+                        }
+                    }
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
+                } else {
+                    defaultWallImage
                 }
-                .frame(height: 200)
-                .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
-            } else {
-                Text("Wall")
-                    .font(AppTypography.label)
-                    .foregroundColor(AppColor.muted)
+
+                ForEach(route.holds) { hold in
+                    routeHoldMarker(for: hold)
+                        .position(
+                            x: hold.normalizedX * proxy.size.width,
+                            y: hold.normalizedY * proxy.size.height
+                        )
+                }
+
+                VStack {
+                    HStack(spacing: 8) {
+                        Text(route.name)
+                            .font(AppTypography.headline)
+                            .foregroundColor(.white)
+                            .shadow(color: .black.opacity(0.8), radius: 3, x: 0, y: 1)
+                            .lineLimit(1)
+                        if let grade = route.gradeV {
+                            Text(grade)
+                                .font(AppTypography.label)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 5)
+                                .background(AppColor.primary.opacity(0.9))
+                                .clipShape(Capsule())
+                        }
+                        Spacer()
+                    }
+                    Spacer()
+                }
+                .padding(12)
             }
         }
+        .frame(height: 260)
+        .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
     }
 
     private var detailsSection: some View {
@@ -106,9 +158,19 @@ struct RouteDetailView: View {
     }
 
     private var actionRow: some View {
-        HStack(spacing: 12) {
+        LazyVGrid(
+            columns: [
+                GridItem(.flexible(), spacing: 10),
+                GridItem(.flexible(), spacing: 10)
+            ],
+            spacing: 10
+        ) {
             actionButton(title: isLiked ? "Liked" : "Like") {
                 Task { await toggleLike() }
+            }
+            actionButton(title: wallImageURL == nil ? "Set Wall" : "Change Wall") {
+                wallUpdateError = nil
+                isWallPickerPresented = true
             }
             actionButton(title: "Log Send") {}
             actionButton(title: "Share") {}
@@ -147,6 +209,12 @@ struct RouteDetailView: View {
                         Task { await commentsViewModel.deleteComment(id: comment.id) }
                     }
                 }
+            }
+
+            if let wallUpdateError, !wallUpdateError.isEmpty {
+                Text(wallUpdateError)
+                    .font(AppTypography.label)
+                    .foregroundColor(AppColor.destructive)
             }
 
             if session.userId == nil {
@@ -213,6 +281,47 @@ struct RouteDetailView: View {
         }
     }
 
+    private func routeHoldMarker(for hold: Hold) -> some View {
+        let size: CGFloat
+        let borderWidth: CGFloat
+        switch hold.size {
+        case .small:
+            size = 24
+            borderWidth = 2
+        case .medium:
+            size = 36
+            borderWidth = 3
+        case .large:
+            size = 56
+            borderWidth = 4
+        }
+
+        return ZStack {
+            Circle()
+                .stroke(Color.hex(hold.type.colorHex), lineWidth: borderWidth)
+                .background(Circle().fill(Color.hex(hold.type.colorHex).opacity(0.25)))
+                .shadow(color: Color.hex(hold.type.colorHex).opacity(0.45), radius: 6)
+                .frame(width: size, height: size)
+            if hold.type == .start || hold.type == .finish {
+                Text(hold.type.shortLabel)
+                    .font(.system(size: size * 0.34, weight: .bold))
+                    .foregroundColor(.white)
+                    .shadow(color: .black.opacity(0.9), radius: 2)
+            }
+        }
+    }
+
+    private var wallImageURL: URL? {
+        guard let normalized = normalizedRemoteImageURLString(wallImageUrl) else { return nil }
+        return URL(string: normalized)
+    }
+
+    private var defaultWallImage: some View {
+        Image("DefaultWall")
+            .resizable()
+            .scaledToFill()
+    }
+
     private func toggleLike() async {
         guard let client = SupabaseClientProvider.client, let userId = session.userId else { return }
         likeError = nil
@@ -240,6 +349,15 @@ struct RouteDetailView: View {
             }
         } catch {
             likeError = error.localizedDescription
+        }
+    }
+
+    private func updateRouteWall(_ wall: Wall) async {
+        do {
+            try await routesViewModel.assignWall(routeId: route.id, wall: wall)
+            wallImageUrl = wall.normalizedImageUrl
+        } catch {
+            wallUpdateError = error.localizedDescription
         }
     }
 

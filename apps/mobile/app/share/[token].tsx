@@ -36,6 +36,7 @@ export default function SharedRouteScreen() {
   const [commentText, setCommentText] = useState('');
   const [commentIsBeta, setCommentIsBeta] = useState(false);
   const [isPosting, setIsPosting] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
 
   const imageUrl = useMemo(() => {
     if (!route) return '';
@@ -65,6 +66,7 @@ export default function SharedRouteScreen() {
 
       setIsLoading(true);
       setError(null);
+      setNow(Date.now());
 
       try {
         let result = await supabase
@@ -116,7 +118,7 @@ export default function SharedRouteScreen() {
   }, [route]);
 
   const formatTimeAgo = (dateStr: string) => {
-    const diff = Date.now() - new Date(dateStr).getTime();
+    const diff = now - new Date(dateStr).getTime();
     const mins = Math.floor(diff / 60000);
     if (mins < 60) return `${mins}m`;
     const hrs = Math.floor(mins / 60);

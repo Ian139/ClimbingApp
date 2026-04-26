@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -20,28 +20,36 @@ interface LogClimbDialogProps {
 }
 
 export function LogClimbDialog({ route, onOpenChange }: LogClimbDialogProps) {
+  if (!route) {
+    return null;
+  }
+
+  return (
+    <LogClimbDialogContent
+      key={route.id}
+      route={route}
+      onOpenChange={onOpenChange}
+    />
+  );
+}
+
+function LogClimbDialogContent({
+  route,
+  onOpenChange,
+}: {
+  route: Route;
+  onOpenChange: (open: boolean) => void;
+}) {
   const { addAscent } = useRoutesStore();
   const { userId, displayName } = useUserStore();
 
-  const [logGrade, setLogGrade] = useState('');
+  const [logGrade, setLogGrade] = useState(route.grade_v || '');
   const [logRating, setLogRating] = useState(0);
   const [logNotes, setLogNotes] = useState('');
   const [logFlashed, setLogFlashed] = useState(false);
   const [isLogging, setIsLogging] = useState(false);
 
-  // Reset form when route changes
-  useEffect(() => {
-    if (route) {
-      setLogGrade(route.grade_v || '');
-      setLogRating(0);
-      setLogNotes('');
-      setLogFlashed(false);
-    }
-  }, [route]);
-
   const handleLogClimb = () => {
-    if (!route) return;
-
     setIsLogging(true);
 
     const ascent: Ascent = {
@@ -64,7 +72,7 @@ export function LogClimbDialog({ route, onOpenChange }: LogClimbDialogProps) {
   };
 
   return (
-    <Dialog open={!!route} onOpenChange={() => onOpenChange(false)}>
+    <Dialog open onOpenChange={() => onOpenChange(false)}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Log Climb</DialogTitle>

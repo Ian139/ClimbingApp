@@ -137,3 +137,66 @@ struct Comment: Codable, Identifiable, Hashable {
         case createdAt = "created_at"
     }
 }
+
+func normalizedHoldCoordinate(_ value: Double) -> Double {
+    value > 1 ? value / 100.0 : value
+}
+
+extension Hold {
+    var normalizedX: Double {
+        normalizedHoldCoordinate(x)
+    }
+
+    var normalizedY: Double {
+        normalizedHoldCoordinate(y)
+    }
+}
+
+func normalizedRemoteImageURLString(_ value: String?) -> String? {
+    guard let value else { return nil }
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty, !trimmed.hasPrefix("/") else { return nil }
+    return trimmed
+}
+
+extension Route {
+    var normalizedWallImageUrl: String? {
+        normalizedRemoteImageURLString(wallImageUrl)
+    }
+
+    var wallImageURL: URL? {
+        guard let normalizedWallImageUrl else { return nil }
+        return URL(string: normalizedWallImageUrl)
+    }
+}
+
+extension Wall {
+    var normalizedImageUrl: String? {
+        normalizedRemoteImageURLString(imageUrl)
+    }
+
+    var imageURL: URL? {
+        guard let normalizedImageUrl else { return nil }
+        return URL(string: normalizedImageUrl)
+    }
+}
+
+extension HoldType {
+    var shortLabel: String {
+        switch self {
+        case .start: return "S"
+        case .hand: return "H"
+        case .foot: return "F"
+        case .finish: return "T"
+        }
+    }
+
+    var colorHex: String {
+        switch self {
+        case .start: return "#10b981"
+        case .hand: return "#ef4444"
+        case .foot: return "#3b82f6"
+        case .finish: return "#f59e0b"
+        }
+    }
+}

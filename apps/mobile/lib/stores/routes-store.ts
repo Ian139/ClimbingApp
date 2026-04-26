@@ -126,14 +126,18 @@ export const useRoutesStore = create<RoutesState>()(
     addRoute: async (route) => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        const routeData = { ...route };
-        delete (routeData as any).ascents;
-        delete (routeData as any).wall;
-        delete (routeData as any).user;
-        delete (routeData as any).is_liked;
-        delete (routeData as any).like_count;
-        delete (routeData as any).liked_by;
-        delete (routeData as any).comments;
+        const excludedRouteFields = new Set([
+          'ascents',
+          'wall',
+          'user',
+          'is_liked',
+          'like_count',
+          'liked_by',
+          'comments',
+        ]);
+        const routeData = Object.fromEntries(
+          Object.entries(route).filter(([key]) => !excludedRouteFields.has(key))
+        );
 
         const { error } = await supabase.from('routes').insert({
           ...routeData,

@@ -7,7 +7,6 @@ import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { useWallsStore, DEFAULT_WALL } from '@/lib/stores/walls-store';
 import { useRoutesStore } from '@/lib/stores/routes-store';
-import { useUserStore } from '@/lib/stores/user-store';
 import { useTransitionStore } from '@/lib/stores/transition-store';
 import { useIsClient } from '@/lib/hooks/useIsClient';
 import { gradeToNumber, calculateDisplayGrade } from '@/lib/utils/grades';

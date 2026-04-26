@@ -2,6 +2,9 @@ import Foundation
 import SwiftUI
 import Combine
 import Supabase
+#if canImport(UIKit)
+import UIKit
+#endif
 
 @MainActor
 final class WallsViewModel: ObservableObject {
@@ -67,6 +70,7 @@ final class WallsViewModel: ObservableObject {
         do {
             let wallId = UUID().uuidString
             var imageUrl = newWallImageUrl.trimmingCharacters(in: .whitespacesAndNewlines)
+            let imageDimensions = dimensions(from: newWallImageData)
 
             if let data = newWallImageData {
                 imageUrl = try await uploadWallImage(data: data, wallId: wallId)
@@ -77,6 +81,8 @@ final class WallsViewModel: ObservableObject {
                 "user_id": AnyEncodable(userId?.uuidString),
                 "name": AnyEncodable(name),
                 "image_url": AnyEncodable(imageUrl),
+                "image_width": AnyEncodable(imageDimensions?.width),
+                "image_height": AnyEncodable(imageDimensions?.height),
                 "is_public": AnyEncodable(true)
             ]
 
@@ -103,15 +109,20 @@ final class WallsViewModel: ObservableObject {
 
         do {
             var updatedImageUrl = imageUrl?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let imageDimensions = dimensions(from: imageData)
             if let data = imageData {
                 updatedImageUrl = try await uploadWallImage(data: data, wallId: id)
             }
 
-            let payload: [String: AnyEncodable] = [
+            var payload: [String: AnyEncodable] = [
                 "name": AnyEncodable(trimmedName),
                 "image_url": AnyEncodable(updatedImageUrl),
                 "updated_at": AnyEncodable(ISO8601DateFormatter().string(from: Date()))
             ]
+            if let imageDimensions {
+                payload["image_width"] = AnyEncodable(imageDimensions.width)
+                payload["image_height"] = AnyEncodable(imageDimensions.height)
+            }
 
             _ = try await client.database
                 .from("walls")
@@ -163,6 +174,15 @@ final class WallsViewModel: ObservableObject {
             .from("walls")
             .getPublicURL(path: path)
         return url.absoluteString
+    }
+
+    private func dimensions(from data: Data?) -> (width: Int, height: Int)? {
+        #if canImport(UIKit)
+        guard let data, let image = UIImage(data: data) else { return nil }
+        return (width: Int(image.size.width), height: Int(image.size.height))
+        #else
+        return nil
+        #endif
     }
 }
 

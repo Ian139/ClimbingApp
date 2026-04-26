@@ -8,6 +8,7 @@ struct WallPickerView: View {
     @EnvironmentObject var session: AppSession
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var viewModel: WallsViewModel
+    var onSelect: ((Wall) -> Void)? = nil
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var editingWall: Wall? = nil
     @State private var editName = ""
@@ -24,6 +25,7 @@ struct WallPickerView: View {
                         ForEach(viewModel.walls) { wall in
                             Button {
                                 viewModel.selectWall(id: wall.id)
+                                onSelect?(wall)
                                 dismiss()
                             } label: {
                                 HStack {
@@ -139,17 +141,30 @@ struct WallPickerView: View {
                     RoundedRectangle(cornerRadius: 10)
                         .stroke(AppColor.border, lineWidth: 1)
                 )
-            if let urlString, let url = URL(string: urlString) {
-                AsyncImage(url: url) { image in
-                    image.resizable().scaledToFill()
-                } placeholder: {
-                    Color.clear
+            if let urlString = urlString?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !urlString.isEmpty,
+               !urlString.hasPrefix("/"),
+               let url = URL(string: urlString) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .empty:
+                        Color.clear
+                    case .success(let image):
+                        image.resizable().scaledToFill()
+                    case .failure:
+                        Image("DefaultWall").resizable().scaledToFill()
+                    @unknown default:
+                        Color.clear
+                    }
                 }
                 .frame(width: 48, height: 48)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
             } else {
-                Image(systemName: "photo")
-                    .foregroundColor(AppColor.muted)
+                Image("DefaultWall")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 48, height: 48)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
             }
         }
     }
